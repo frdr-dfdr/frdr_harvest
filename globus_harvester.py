@@ -34,6 +34,7 @@ from harvester.CSWRepository import CSWRepository
 from harvester.SocrataRepository import SocrataRepository
 from harvester.DataStreamRepository import DataStreamRepository
 from harvester.DataCiteRepository import DataCiteRepository
+from harvester.DryadRepository import DryadRepository
 from harvester.DBInterface import DBInterface
 from harvester.HarvestLogger import HarvestLogger
 from harvester.TimeFormatter import TimeFormatter
@@ -147,6 +148,8 @@ if __name__ == "__main__":
                 repo = DataStreamRepository(final_config)
             elif repoconfig['type'] == "datacite":
                 repo = DataCiteRepository(final_config)
+            elif repoconfig['type'] == "dryad":
+                repo = DryadRepository(final_config)
             repo.setLogger(main_log)
             if 'copyerrorstoemail' in repoconfig and not repoconfig['copyerrorstoemail']:
                 main_log.setErrorsToEmail(False)
