@@ -81,6 +81,11 @@ class ZenodoRepository(HarvestRepository):
         record["identifier"] = zenodo_record["doi"]
         record["item_url"] = "https://doi.org/" + zenodo_record["doi"]
 
+        if "communities" in zenodo_record["metadata"] and zenodo_record["metadata"]["communities"]:
+            for community in zenodo_record["metadata"]["communities"]:
+                if community["id"] == "dryad":
+                    return False
+
         is_canadian = False
         for creator in zenodo_record["metadata"]["creators"]:
             if "affiliation" in creator and creator["affiliation"]:
