@@ -44,7 +44,7 @@ class ZenodoRepository(HarvestRepository):
             records = response["hits"]["hits"]
 
             item_count = 0
-            total_zenodo_dataset_count = 100 #response["hits"]["total"] # hardcode 1000 for testing
+            total_zenodo_dataset_count = 1000 #response["hits"]["total"] # hardcode 1000 for testing
 
             while item_count < total_zenodo_dataset_count:
                 for record in records:
@@ -98,7 +98,7 @@ class ZenodoRepository(HarvestRepository):
                         is_canadian = True
                         break
                     elif ror_best_match["score"] > 0.9 and ror_best_match["organization"]["country"]["country_code"] == "CA":
-                        print("maybe Canadian?")
+                        print("Set breakpoint here, check if accurate match, and raise threshold if needed: " + creator["affiliation"])
                         is_canadian = True
                         break
 
@@ -116,7 +116,6 @@ class ZenodoRepository(HarvestRepository):
             record.pop("affiliation")
 
         record["title"] = zenodo_record["metadata"]["title"]
-        record["title_fr"] = ""
         record["series"] = ""
         record["pub_date"] = zenodo_record["metadata"]["publication_date"]
         record["description"] = zenodo_record["metadata"]["description"]
@@ -124,6 +123,17 @@ class ZenodoRepository(HarvestRepository):
 
         if "keywords" in zenodo_record["metadata"] and zenodo_record["metadata"]["keywords"]:
             record["tags"] = zenodo_record["metadata"]["keywords"]
+
+        if "language" in zenodo_record["metadata"] and zenodo_record["metadata"]["language"] in ["fra", "fre", "fr"]:
+            record["title_fr"] = record["title"]
+            record["title"] = ""
+            record["description_fr"] = record["description"]
+            record["description"] = ""
+            if "tags" in record:
+                record["tags_fr"] = record["tags"]
+                record.pop("tags")
+        else:
+            record["title_fr"] = ""
 
         if "locations" in zenodo_record["metadata"] and zenodo_record["metadata"]["locations"]:
             record["geoplaces"] = []
@@ -142,7 +152,8 @@ class ZenodoRepository(HarvestRepository):
 
         record["geofiles"] = []
         for file in zenodo_record["files"]:
-            if file["type"].lower() in self.geofile_extensions:
+            extension = "." + file["type"].lower()
+            if extension in self.geofile_extensions:
                 geofile = {}
                 geofile["filename"] = file["key"]
                 geofile["uri"] = file["links"]["self"]
