@@ -39,7 +39,7 @@ class DryadRepository(HarvestRepository):
 
         try:
             # Initial API call
-            url = self.url + "/api/v2/datasets"
+            url = self.url
             r = requests.request("GET", url, headers=self.headers)
             response = r.json()
             records = response['_embedded']['stash:datasets']
@@ -60,7 +60,7 @@ class DryadRepository(HarvestRepository):
                                                                                                                tdelta),
                                                                                                            item_count / tdelta))
                 if 'next' in response['_links']:
-                    url = self.url + response['_links']['next']['href']
+                    url = self.url.replace("/api/v2/datasets/", "") + response['_links']['next']['href']
                     r = requests.request("GET", url, headers=self.headers)
                     response = r.json()
                     records = response['_embedded']['stash:datasets']
@@ -141,7 +141,7 @@ class DryadRepository(HarvestRepository):
 
     def _update_record(self, record):
         try:
-            record_url = self.url + "/api/v2/datasets/" + record["local_identifier"].replace("doi:", "doi%3A").replace("/dryad", "%2Fdryad")
+            record_url = self.url + record["local_identifier"].replace("doi:", "doi%3A").replace("/dryad", "%2Fdryad")
             try:
                 item_response = requests.get(record_url)
                 dryad_record = json.loads(item_response.text)
