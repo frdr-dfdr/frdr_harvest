@@ -26,7 +26,7 @@ class DryadRepository(HarvestRepository):
     def _crawl(self):
         kwargs = {
             "repo_id": self.repository_id, "repo_url": self.url, "repo_set": self.set, "repo_name": self.name,
-            "repo_type": "datacite",
+            "repo_type": "dryad",
             "enabled": self.enabled, "repo_thumbnail": self.thumbnail, "item_url_pattern": self.item_url_pattern,
             "abort_after_numerrors": self.abort_after_numerrors,
             "max_records_updated_per_run": self.max_records_updated_per_run,
@@ -45,7 +45,7 @@ class DryadRepository(HarvestRepository):
             records = response['_embedded']['stash:datasets']
 
             item_count = 0
-            total_dryad_item_count = response['total'] # 1000
+            total_dryad_item_count = response['total'] # hardcode 1000 for testing
 
             while item_count < total_dryad_item_count:
                 for record in records:
@@ -79,7 +79,7 @@ class DryadRepository(HarvestRepository):
 
     def format_dryad_to_oai(self, dryad_record):
         record = {}
-        record["identifier"] = dryad_record["_links"]["self"]["href"]
+        record["identifier"] = dryad_record["identifier"]
         record["item_url"] = "https://doi.org/" + dryad_record["identifier"].split("doi:")[1]
 
         is_canadian = False
@@ -91,7 +91,7 @@ class DryadRepository(HarvestRepository):
                     ror_record = r.json()
                     try:
                         self.ror_ids_countries[author['affiliationROR']] = ror_record["country"]["country_code"]
-                    except KeyError as e:
+                    except KeyError:
                         self.logger.error("ROR record {} missing country".format(author['affiliationROR']))
                         continue
                 if self.ror_ids_countries[author['affiliationROR']] == "CA":
@@ -141,7 +141,7 @@ class DryadRepository(HarvestRepository):
 
     def _update_record(self, record):
         try:
-            record_url = self.url + "/api/v2/datasets/" + record["local_identifier"].replace("doi:", "doi%3A").replace("/dryad", "%2Fdryad") #FIXME use this instead
+            record_url = self.url + "/api/v2/datasets/" + record["local_identifier"].replace("doi:", "doi%3A").replace("/dryad", "%2Fdryad")
             try:
                 item_response = requests.get(record_url)
                 dryad_record = json.loads(item_response.text)
