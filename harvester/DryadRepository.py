@@ -38,8 +38,6 @@ class DryadRepository(HarvestRepository):
         self.repository_id = self.db.update_repo(**kwargs)
 
         try:
-            # Headers for all API requests
-
             # Initial API call
             url = self.url + "/api/v2/datasets"
             r = requests.request("GET", url, headers=self.headers)
@@ -51,23 +49,22 @@ class DryadRepository(HarvestRepository):
 
             while item_count < total_dryad_item_count:
                 for record in records:
-                    item_identifier = record['_links']['self']['href']
-                    result = self.db.write_header(item_identifier, self.repository_id)
-                    item_count = item_count + 1
-                    if (item_count % self.update_log_after_numitems == 0):
-                        tdelta = time.time() - self.tstart + 0.1
-                        self.logger.info("Done {} item headers after {} ({:.1f} items/sec)".format(item_count,
-                                                                                                       self.formatter.humanize(
-                                                                                                           tdelta),
-                                                                                                       item_count / tdelta))
-                try:
+                    if '_links' in record and record['_links']:
+                        item_identifier = record["identifier"]
+                        result = self.db.write_header(item_identifier, self.repository_id)
+                        item_count = item_count + 1
+                        if (item_count % self.update_log_after_numitems == 0):
+                            tdelta = time.time() - self.tstart + 0.1
+                            self.logger.info("Done {} item headers after {} ({:.1f} items/sec)".format(item_count,
+                                                                                                           self.formatter.humanize(
+                                                                                                               tdelta),
+                                                                                                           item_count / tdelta))
+                if 'next' in response['_links']:
                     url = self.url + response['_links']['next']['href']
                     r = requests.request("GET", url, headers=self.headers)
                     response = r.json()
                     records = response['_embedded']['stash:datasets']
-
-                except Exception as e:
-                    print(e)
+                else:
                     break
 
             self.logger.info("Found {} items in feed".format(item_count))
@@ -79,8 +76,6 @@ class DryadRepository(HarvestRepository):
             if self.error_count < self.abort_after_numerrors:
                 return True
         return False
-
-
 
     def format_dryad_to_oai(self, dryad_record):
         record = {}
@@ -145,12 +140,8 @@ class DryadRepository(HarvestRepository):
         return record
 
     def _update_record(self, record):
-
-        # url = self.url + dataset['_links']['self']['href']
-        # r = requests.request("GET", url, headers=headers)
-        # dryad_record = r.json()
         try:
-            record_url = self.url + record["local_identifier"]
+            record_url = self.url + "/api/v2/datasets/" + record["local_identifier"].replace("doi:", "doi%3A").replace("/dryad", "%2Fdryad") #FIXME use this instead
             try:
                 item_response = requests.get(record_url)
                 dryad_record = json.loads(item_response.text)

@@ -438,7 +438,7 @@ class DBInterface:
             # Replace underscores in IDs with colons (SFU Radar)
             oai_id = oai_id.replace("_", ":")
 
-        # If given a pattern then substitue in the item ID and return it
+        # If given a pattern then substitute in the item ID and return it
         if "item_url_pattern" in record and record["item_url_pattern"]:
             if oai_id:
                 local_url = re.sub("(\%id\%)", oai_id, record["item_url_pattern"])
