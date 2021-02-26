@@ -19,7 +19,6 @@ class ZenodoRepository(HarvestRepository):
         self.ror_base_url = "https://api.ror.org/organizations"
         self.ror_ids_countries = {}
         self.headers = {
-            'accept': "application/json",
             "content-type": "application/json"
         }
 
@@ -45,7 +44,7 @@ class ZenodoRepository(HarvestRepository):
             records = response["hits"]["hits"]
 
             item_count = 0
-            total_zenodo_dataset_count = response['hits']['total'] # hardcode 1000 for testing
+            total_zenodo_dataset_count = 100 #response["hits"]["total"] # hardcode 1000 for testing
 
             while item_count < total_zenodo_dataset_count:
                 for record in records:
@@ -60,7 +59,7 @@ class ZenodoRepository(HarvestRepository):
                                                                                                                tdelta),
                                                                                                            item_count / tdelta))
                 if "next" in response["links"]:
-                    url = self.url + response["links"]["next"]
+                    url = response["links"]["next"]
                     r = requests.request("GET", url, headers=self.headers)
                     response = r.json()
                     records = response["hits"]["hits"]
@@ -86,13 +85,18 @@ class ZenodoRepository(HarvestRepository):
         for creator in zenodo_record["metadata"]["creators"]:
             if "affiliation" in creator and creator["affiliation"]:
                 url = self.ror_base_url + "?affiliation=" + creator['affiliation']
-                r = requests.request("GET", url, headers=headers)
+                r = requests.request("GET", url, headers=self.headers)
                 ror_records = r.json()
                 if len(ror_records["items"]) > 0:
                     ror_best_match = ror_records["items"][0]
-                    if ror_best_match["score"] > 0.8 and ror_best_match["organization"]["country"]["country_code"] == "CA":
+                    if ror_best_match["score"] == 1 and ror_best_match["organization"]["country"]["country_code"] == "CA":
                         is_canadian = True
                         break
+                    elif ror_best_match["score"] > 0.9 and ror_best_match["organization"]["country"]["country_code"] == "CA":
+                        print("maybe Canadian?")
+                        is_canadian = True
+                        break
+
         if not is_canadian:
             return False
 
@@ -145,7 +149,7 @@ class ZenodoRepository(HarvestRepository):
         try:
             record_url = self.url + "/records/?q=doi:\"" + record["local_identifier"] + "\""
             try:
-                item_response = requests.get(record_url)
+                item_response = requests.get(record_url, headers=self.headers)
                 zenodo_record = json.loads(item_response.text)["hits"]["hits"][0]
             except Exception as e:
                 # Exception means this URL was not found
