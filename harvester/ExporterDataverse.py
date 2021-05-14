@@ -1,5 +1,10 @@
 import json
 import harvester.Exporter as Exporter
+import re
+
+
+def check_dd(decimal_string):
+    return re.search('^[-]?((\d+(\.\d+)?)|(\.\d+))$', decimal_string) is not None
 
 
 class ExporterDataverse(Exporter.Exporter):
@@ -258,8 +263,13 @@ class ExporterDataverse(Exporter.Exporter):
                 (record["record_id"],))
             coords = []
             for row in cur:
-                val = {"westLon": row["westlon"], "eastLon": row["eastlon"], "northLat": row["northlat"], "southLat": row["southlat"]}
-                coords.append(self.get_bbox(val))
+                west = str(row["westlon"])
+                east = str(row["eastlon"])
+                north = str(row["northlat"])
+                south = str(row["southlat"])
+                if check_dd(west) and check_dd(east) and check_dd(north) and check_dd(south):
+                    val = {"westLon": row["westlon"], "eastLon": row["eastlon"], "northLat": row["northlat"], "southLat": row["southlat"]}
+                    coords.append(self.get_bbox(val))
             if coords:
                 return coords
         except:
@@ -293,28 +303,15 @@ class ExporterDataverse(Exporter.Exporter):
             self.logger.error("Unable to get geo file metadata fields for creating json for Geodisy")
 
     def get_file_info(self, file_info, record):
-        full = file_info["uri"]
-        try:
-            file_id_start = full.index("/datafile/") + 10
-            file_id = full[file_id_start:]
-            file_metadata = {
-                "frdr_harvester": True,
-                "restricted": False,
-                "label": file_info["filename"],
-                "dataFile": {
-                    "server": full[0: full.index("api/")],
-                    "record_id": file_id,
-                    "pidURL": record["item_url"],
-                    "filename": file_info["filename"]
-                    }
-                }
-            return file_metadata
-        except IndexError:
-            self.logger.error("Unable to get geofile info for creating json for Geodisy, "
-                              "index somehow went out of bounds")
-        except ValueError:
-            self.logger.error("Couldn't find 'datafile' in file uri in record {} for creating json for "
-                              "Geodisy, index somehow went out of bounds".format(record["record_id"]))
+        file_metadata = {
+            "frdr_harvester": True,
+            "restricted": False,
+            "dataFile": {
+                "fileURI": file_info["uri"],
+                "filename": file_info["filename"]
+            }
+        }
+        return file_metadata
 
     # Utility Functions____________________________________________
 
