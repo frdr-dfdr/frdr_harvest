@@ -15,13 +15,16 @@ class DryadRepository(HarvestRepository):
         self.default_language = "en"
         super(DryadRepository, self).setRepoParams(repoParams)
         self.domain_metadata = []
-        self.headers = {'accept': 'application/vnd.api+json'}
-        self.ror_base_url = "https://api.ror.org/organizations"
-        self.ror_ids_countries = {}
         self.headers = {
             'accept': "application/json",
             "content-type": "application/json"
         }
+        self.ror_data_file = 'conf/ror-data-2021-04-06.json'
+        with open(self.ror_data_file) as f:
+            ror_data_list = json.load(f)
+            self.ror_data = {}
+            for ror_entry in ror_data_list:
+                self.ror_data[ror_entry["id"]] = ror_entry
 
     def _crawl(self):
         kwargs = {
@@ -85,20 +88,20 @@ class DryadRepository(HarvestRepository):
         is_canadian = False
         for author in dryad_record['authors']:
             if 'affiliationROR' in author and author['affiliationROR']:
-                if author['affiliationROR'] not in self.ror_ids_countries:
-                    url = self.ror_base_url + "/" + author['affiliationROR']
-                    r = requests.request("GET", url, headers=self.headers)
-                    ror_record = r.json()
+                try:
+                    ror_record = self.ror_data[author["affiliationROR"]]
                     try:
-                        self.ror_ids_countries[author['affiliationROR']] = ror_record["country"]["country_code"]
+                        if ror_record["country"]["country_code"] == "CA":
+                            is_canadian = True
+                            break
                     except KeyError:
                         self.logger.error("ROR record {} missing country".format(author['affiliationROR']))
                         continue
-                if self.ror_ids_countries[author['affiliationROR']] == "CA":
-                    is_canadian = True
-                    break
-        if not is_canadian:
-            return False
+                except KeyError:
+                        self.logger.error("ROR ID {} does not exist".format(author["affiliationROR"]))
+                        continue
+            if not is_canadian:
+                return False
 
         record["creator"] = []
         record["affiliation"] = []
