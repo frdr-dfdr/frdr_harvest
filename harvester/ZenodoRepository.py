@@ -21,6 +21,12 @@ class ZenodoRepository(HarvestRepository):
         self.headers = {
             "content-type": "application/json"
         }
+        self.ror_data_file = 'conf/ror-data-2021-04-06.json'
+        with open(self.ror_data_file) as f:
+            ror_data_list = json.load(f)
+            self.ror_data = {}
+            for ror_entry in ror_data_list:
+                self.ror_data[ror_entry["id"]] = ror_entry
 
     def _crawl(self):
         kwargs = {
@@ -44,7 +50,7 @@ class ZenodoRepository(HarvestRepository):
             records = response["hits"]["hits"]
 
             item_count = 0
-            total_zenodo_dataset_count = 1000 #response["hits"]["total"] # hardcode 1000 for testing
+            total_zenodo_dataset_count = 100 #response["hits"]["total"] # hardcode 1000 for testing
 
             while item_count < total_zenodo_dataset_count:
                 for record in records:
@@ -89,19 +95,21 @@ class ZenodoRepository(HarvestRepository):
         is_canadian = False
         for creator in zenodo_record["metadata"]["creators"]:
             if "affiliation" in creator and creator["affiliation"]:
-                url = self.ror_base_url + "?affiliation=" + creator['affiliation']
-                r = requests.request("GET", url, headers=self.headers)
-                ror_records = r.json()
-                if len(ror_records["items"]) > 0:
-                    ror_best_match = ror_records["items"][0]
-                    if ror_best_match["score"] == 1 and ror_best_match["organization"]["country"]["country_code"] == "CA":
-                        is_canadian = True
-                        break
-                    elif ror_best_match["score"] > 0.9 and ror_best_match["organization"]["country"]["country_code"] == "CA":
-                        print("Set breakpoint here, check if accurate match, and raise threshold if needed: " + creator["affiliation"])
-                        is_canadian = True
-                        break
+                affiliation_match = self.db.get_ror_from_affiliation(creator["affiliation"])
+                # if there is no match, or match is > 30 days old, query ROR
+                if not affiliation_match or (affiliation_match and int(time.time()) - affiliation_match["updated_timestamp"] > 2592000):
+                    url = self.ror_base_url + "?affiliation=" + creator['affiliation']
+                    r = requests.request("GET", url, headers=self.headers)
+                    ror_records = r.json()
+                    if len(ror_records["items"]) > 0:
+                        ror_best_match = ror_records["items"][0]
+                        affiliation_match = self.db.write_ror_affiliation_match(creator["affiliation"], ror_best_match["organization"]["id"], ror_best_match["score"], ror_best_match["organization"]["country"]["country_code"])
 
+                if affiliation_match and affiliation_match["country"] == "CA":
+                    if affiliation_match["score"] > 0.9:
+                        is_canadian = True
+                        break
+            
         if not is_canadian:
             return False
 

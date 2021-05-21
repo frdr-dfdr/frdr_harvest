@@ -237,6 +237,20 @@ class DBInterface:
             for rec in records:
                 repos[i]["item_count"] = int(rec["cnt"])
         return repos
+
+    def get_ror_from_affiliation(self, affiliation_string):
+        ror_affiliation_matches = self.get_multiple_records("ror_affiliation_matches", "*", "affiliation_string", affiliation_string)
+        if len(ror_affiliation_matches) > 0:
+            return ror_affiliation_matches[0]
+        return ror_affiliation_matches
+
+    def write_ror_affiliation_match(self, affiliation_string, ror_id, score, country):
+        ror_affiliation_match_id = self.get_single_record_id("ror_affiliation_matches", affiliation_string)
+        if ror_affiliation_match_id is not None:
+            self.delete_row_generic("ror_affiliation_matches", affiliation_string)
+        extras = {"ror_id": ror_id, "score": score, "country": country, "updated_timestamp": int(time.time())}
+        ror_affiliation_match_id = self.insert_related_record("ror_affiliation_matches", affiliation_string, **extras)
+        return self.get_ror_from_affiliation(affiliation_string)
     
     def update_record(self, record_id, fields):
         update_record_sql = "update records set "
