@@ -692,22 +692,24 @@ class DBInterface:
             if "affiliation" in record:
                 if not isinstance(record["affiliation"], list):
                     record["affiliation"] = [record["affiliation"]]
-                existing_affiliation_recs = self.get_multiple_records("records_x_affiliations", "affiliation_id",
+                existing_affiliation_recs = self.get_multiple_records("records_x_affiliations", "*",
                                                                       "record_id", record["record_id"])
                 existing_affiliation_ids = [e["affiliation_id"] for e in existing_affiliation_recs]
                 new_affiliation_ids = []
                 for affil in record["affiliation"]:
-                    affiliation_id = self.get_single_record_id("affiliations", affil)
+                    if isinstance(affil, str):
+                        affil = {"affiliation_name": affil, "affiliation_ror": ""}
+                    extras = {"affiliation_ror": affil["affiliation_ror"]}
+                    affiliation_id = self.get_single_record_id("affiliations", affil["affiliation_name"], **extras)
                     if affiliation_id is None:
-                        affiliation_id = self.insert_related_record("affiliations", affil)
+                        affiliation_id = self.insert_related_record("affiliations", affil["affiliation_name"], **extras)
                         modified_upstream = True
                     if affiliation_id is not None:
-                        if affiliation_id not in existing_affiliation_ids and affiliation_id not in new_affiliation_ids:
+                        new_affiliation_ids.append(affiliation_id)
+                        if affiliation_id not in existing_affiliation_ids:
                             self.insert_cross_record("records_x_affiliations", "affiliations", affiliation_id,
                                                      record["record_id"])
                             modified_upstream = True
-                        if affiliation_id not in new_affiliation_ids:
-                            new_affiliation_ids.append(affiliation_id)
                 for eid in existing_affiliation_ids:
                     if eid not in new_affiliation_ids:
                         modified_upstream = True

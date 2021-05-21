@@ -118,7 +118,7 @@ class DryadRepository(HarvestRepository):
             if "affiliation" in creator and creator["affiliation"]:
                 affiliation = creator["affiliation"]
             if "affiliationROR" in creator and creator["affiliationROR"]:
-                affiliation = affiliation + " (" + creator["affiliationROR"] + ")"
+                affiliation = {"affiliation_name": affiliation, "affiliation_ror": creator["affiliationROR"]}
             if affiliation not in record["affiliation"]:
                 record["affiliation"].append(affiliation)
 
