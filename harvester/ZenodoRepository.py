@@ -127,7 +127,9 @@ class ZenodoRepository(HarvestRepository):
         record["series"] = ""
         record["pub_date"] = zenodo_record["metadata"]["publication_date"]
         record["description"] = zenodo_record["metadata"]["description"]
-        record["rights"] = zenodo_record["metadata"]["license"]["id"]
+
+        if "license" in zenodo_record["metadata"] and zenodo_record["metadata"]["license"]:
+            record["rights"] = zenodo_record["metadata"]["license"]["id"]
 
         if "keywords" in zenodo_record["metadata"] and zenodo_record["metadata"]["keywords"]:
             record["tags"] = zenodo_record["metadata"]["keywords"]
@@ -158,14 +160,15 @@ class ZenodoRepository(HarvestRepository):
             else: # includes access_right "open"
                 record["access"] = "Public"
 
-        record["geofiles"] = []
-        for file in zenodo_record["files"]:
-            extension = "." + file["type"].lower()
-            if extension in self.geofile_extensions:
-                geofile = {}
-                geofile["filename"] = file["key"]
-                geofile["uri"] = file["links"]["self"]
-                record["geofiles"].append(geofile)
+        if "files" in zenodo_record:
+            record["geofiles"] = []
+            for file in zenodo_record["files"]:
+                extension = "." + file["type"].lower()
+                if extension in self.geofile_extensions:
+                    geofile = {}
+                    geofile["filename"] = file["key"]
+                    geofile["uri"] = file["links"]["self"]
+                    record["geofiles"].append(geofile)
 
         return record
 
