@@ -5,6 +5,8 @@ import json
 import re
 import os.path
 from dateutil import parser
+from datetime import datetime
+import urllib
 
 
 class DryadRepository(HarvestRepository):
@@ -42,8 +44,10 @@ class DryadRepository(HarvestRepository):
 
         try:
             # Initial API call
-            url = self.url
-            r = requests.request("GET", url, headers=self.headers)
+            url = self.url + "/search/"
+            # Check for records updated in the past 30 days
+            querystring = {"per_page": str(100), "modifiedSince": datetime.strftime(datetime.fromtimestamp(self.last_crawl - 60*60*24*7), '%Y-%m-%dT%H:%M:%SZ')}
+            r = requests.request("GET", url, headers=self.headers, params=querystring)
             response = r.json()
             records = response['_embedded']['stash:datasets']
 
@@ -63,8 +67,8 @@ class DryadRepository(HarvestRepository):
                                                                                                                tdelta),
                                                                                                            item_count / tdelta))
                 if 'next' in response['_links']:
-                    url = self.url.replace("/api/v2/datasets/", "") + response['_links']['next']['href']
-                    r = requests.request("GET", url, headers=self.headers)
+                    url = self.url.replace("/api/v2", "") + response['_links']['next']['href']
+                    r = requests.request("GET", url, headers=self.headers, params=querystring)
                     response = r.json()
                     records = response['_embedded']['stash:datasets']
                 else:
@@ -144,7 +148,7 @@ class DryadRepository(HarvestRepository):
 
     def _update_record(self, record):
         try:
-            record_url = self.url + record["local_identifier"].replace("doi:", "doi%3A").replace("/dryad", "%2Fdryad")
+            record_url = self.url + "/datasets/" + urllib.parse.quote_plus(record["local_identifier"])
             try:
                 item_response = requests.get(record_url)
                 dryad_record = json.loads(item_response.text)
