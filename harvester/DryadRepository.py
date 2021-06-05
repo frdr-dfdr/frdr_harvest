@@ -132,7 +132,10 @@ class DryadRepository(HarvestRepository):
         record["title"] = dryad_record["title"]
         record["title_fr"] = ""
         record["series"] = ""
-        record["pub_date"] = dryad_record["publicationDate"]
+        try:
+            record["pub_date"] = dryad_record["publicationDate"]
+        except:
+            record["pub_date"] = dryad_record["lastModificationDate"]
         record["description"] = dryad_record["abstract"]
         record["rights"] = dryad_record["license"]
 
