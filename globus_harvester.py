@@ -35,7 +35,6 @@ from harvester.SocrataRepository import SocrataRepository
 from harvester.DataStreamRepository import DataStreamRepository
 from harvester.DataCiteRepository import DataCiteRepository
 from harvester.DryadRepository import DryadRepository
-from harvester.ZenodoRepository import ZenodoRepository
 from harvester.DBInterface import DBInterface
 from harvester.HarvestLogger import HarvestLogger
 from harvester.TimeFormatter import TimeFormatter
