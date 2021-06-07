@@ -136,7 +136,7 @@ class DryadRepository(HarvestRepository):
             record["pub_date"] = dryad_record["publicationDate"]
         except:
             record["pub_date"] = dryad_record["lastModificationDate"]
-        record["description"] = dryad_record["abstract"]
+        record["description"] = dryad_record.get("abstract", "")
         record["rights"] = dryad_record["license"]
 
         if "keywords" in dryad_record and dryad_record["keywords"]:
