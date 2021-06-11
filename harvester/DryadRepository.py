@@ -21,14 +21,17 @@ class DryadRepository(HarvestRepository):
             'accept': "application/json",
             "content-type": "application/json"
         }
-        self.ror_data_file = 'conf/ror-data-2021-04-06.json'
-        with open(self.ror_data_file) as f:
-            ror_data_list = json.load(f)
-            self.ror_data = {}
-            for ror_entry in ror_data_list:
-                self.ror_data[ror_entry["id"]] = ror_entry
+        self.ror_data = None
 
     def _crawl(self):
+        if not self.load_ror_data():
+            self.logger.error("ROR data could not be fetched from remote")
+            return
+
+        if not self.ror_data:
+            self.logger.error("ROR data could not be loaded from the local JSON file")
+            return
+
         kwargs = {
             "repo_id": self.repository_id, "repo_url": self.url, "repo_set": self.set, "repo_name": self.name,
             "repo_type": "dryad",
@@ -184,4 +187,15 @@ class DryadRepository(HarvestRepository):
                 return True
 
         return False
+
+    def update_stale_records(self, dbparams):
+        if not self.load_ror_data():
+            self.logger.error("ROR data could not be fetched from remote")
+            return
+
+        if not self.ror_data:
+            self.logger.error("ROR data could not be loaded from the local JSON file")
+            return
+
+        super().update_stale_records(dbparams)
 

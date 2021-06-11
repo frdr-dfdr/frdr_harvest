@@ -47,7 +47,7 @@ class DBInterface:
                 "settings (setting_id INTEGER PRIMARY KEY NOT NULL, setting_name TEXT, setting_value TEXT)")
 
             # Determine if the database schema needs to be updated
-            dbversion = self.get_setting("dbversion")
+            dbversion = int(self.get_setting("dbversion"))
             files = os.listdir("sql/" + str(self.dbtype) + "/")
             files.sort()
             for filename in files:
@@ -113,7 +113,7 @@ class DBInterface:
         return statement
 
     def get_setting(self, setting_name):
-        # Get an internal setting - always returning an int value
+        # Get an internal setting
         setting_value = 0
         con = self.getConnection()
         res = None
@@ -125,7 +125,7 @@ class DBInterface:
             if cur is not None:
                 res = cur.fetchone()
             if res is not None:
-                setting_value = int(res['setting_value'])
+                setting_value = res['setting_value']
         return setting_value
 
     def set_setting(self, setting_name, new_value):
@@ -133,7 +133,7 @@ class DBInterface:
         con = self.getConnection()
         with con:
             cur = self.getRowCursor()
-            if curent_value == 0:
+            if not curent_value:
                 cur.execute(self._prep("insert into settings(setting_value, setting_name) values (?,?)"),
                             (new_value, setting_name))
             else:

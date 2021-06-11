@@ -1,8 +1,11 @@
 import time
 import re
+import requests
 from harvester.TimeFormatter import TimeFormatter
-
+from zipfile import ZipFile
 import urllib3
+import os
+import json
 
 urllib3.disable_warnings()  # We are not loading any unsafe sites, just repos we trust
 
@@ -84,6 +87,55 @@ class HarvestRepository(object):
                 self.logger.info("This repo is not yet due to be harvested")
         else:
             self.logger.info("This repo is not enabled for harvesting")
+
+    def load_ror_data(self):
+        # Check if we have the most current ROR data saved locally
+        # Given a Figshare URL to the data, follow it to Amazon, download the ZIP and extract the JSON data
+        current_ror_json_url = self.db.get_setting("ror_json_url")
+        if self.ror_json_url:
+            if current_ror_json_url != self.ror_json_url:
+                try:
+                    ror_zipfile = self.ror_data_file + ".zip"
+                    zip_files = []
+                    self.logger.info("Fetching ROR data from {}".format(self.ror_json_url))
+                    res = requests.get(self.ror_json_url, allow_redirects=False)
+                    if res.status_code == 302: # Redirect on first request to Figshare is expected
+                        cj = res.cookies
+                        redir_url = res.headers["Location"]
+                        ror_json = requests.get(redir_url, cookies = cj)
+                        with open(ror_zipfile,"wb") as f:
+                            f.write(ror_json.content)
+                        with ZipFile(ror_zipfile,"r") as zip_ref:
+                            zip_files = zip_ref.namelist()
+                            for filename in zip_files:
+                                if filename.startswith("ror-data") and filename.endswith(".json"):
+                                    zip_ref.extract(filename, "data/")
+                                    self.logger.info("Moving {} to {}".format("data/" + filename, self.ror_data_file))
+                                    os.rename("data/" + filename, self.ror_data_file)
+                                    self.db.set_setting("ror_json_file", filename)
+                        os.remove(ror_zipfile)
+                        self.db.set_setting("ror_json_url",self.ror_json_url)
+                    else:
+                        self.logger.error("Expected a 302 redirect on the ror_json_url but instead got {}".format(res.status_code))
+                except:
+                    # This may be OK for this run, we could still use old copy for now if we have it
+                    self.logger.error("Could not download and/or save ROR data file")
+        else:
+            self.logger.error("Function to load ROR data was called but ror_json_url missing from config")
+
+        # Load the ROR data
+        try:
+            with open(self.ror_data_file,"r") as f:
+                ror_data_list = json.load(f)
+                self.ror_data = {}
+                for ror_entry in ror_data_list:
+                    self.ror_data[ror_entry["id"]] = ror_entry
+            return True
+        except:
+            self.logger.error("Error in loading or parsing ROR data file {}".format(self.ror_data_file))
+            return False
+
+        return True
 
     def _update_record(self, record):
         """ This method to be overridden """

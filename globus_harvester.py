@@ -95,6 +95,8 @@ if __name__ == "__main__":
     final_config['export_file_limit_mb'] = int(config['export'].get('export_file_limit_mb', 10))
     final_config['export_format'] = config['export'].get('export_format', "gmeta")
     final_config['socrata_app_token'] = config['socrata'].get('app_token', None)
+    final_config['ror_json_url'] = config['ror'].get('ror_json_url', None)
+    final_config['ror_data_file'] =  "data/ror-data.json"
     final_config['repository_id'] = None
 
     main_log = HarvestLogger(config['logging'])

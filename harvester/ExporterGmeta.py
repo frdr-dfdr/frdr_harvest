@@ -17,7 +17,7 @@ class ExporterGmeta(Exporter.Exporter):
         deleted = []
 
         try:
-            lastrun_timestamp = self.db.get_setting("last_run_timestamp")
+            lastrun_timestamp = int(self.db.get_setting("last_run_timestamp"))
         except:
             lastrun_timestamp = 0
 
