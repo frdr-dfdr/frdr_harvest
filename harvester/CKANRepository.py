@@ -153,7 +153,11 @@ class CKANRepository(HarvestRepository):
 
         record["identifier"] = local_identifier
 
-        if self.item_url_pattern:
+        # If a CanWin Data Hub record has a doi it is preferred over the local identifier
+        doi = ckan_record.get("project_doi")
+        if self.name == 'CanWin Data Hub' and doi and doi.strip():
+            record["item_url"] = "https://doi.org/" + ckan_record['project_doi']
+        elif self.item_url_pattern:
             record["item_url"] = self.item_url_pattern.replace("%id%", ckan_record["id"])
         else:
             record["item_url"] = ckan_record["url"]
@@ -228,7 +232,7 @@ class CKANRepository(HarvestRepository):
             elif self.default_language == "fr":
                 record["subject_fr"] = ckan_record.get('subject', "")
         elif "groups" in ckan_record and ckan_record["groups"]:
-            # Surrey, CanWin Data Hub, Quebec, Montreal, Yukon (plus Regina, Guelph, Niagara)
+            # Surrey, CanWin Data Hub, Quebec, Montreal, Yukon (plus Guelph, Niagara)
             record["subject"] = []
             record["subject_fr"] = []
             for group in ckan_record["groups"]:
@@ -429,7 +433,7 @@ class CKANRepository(HarvestRepository):
                 geofile = {}
                 try:
                     url = ckan_file["url"].split("?")[0] # remove any query parameters
-                    filename = url.split("/")[len(url.split("/"))-1] # get the last part after the slasy
+                    filename = url.split("/")[len(url.split("/"))-1] # get the last part after the slash
                     extension = "." + filename.split(".")[len(filename.split("."))-1]
                     if extension.lower() in self.geofile_extensions:
                         geofile["uri"] = url
