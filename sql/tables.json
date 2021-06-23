@@ -17,6 +17,7 @@
     "records_x_tags":         { "idcol": "records_x_tags_id",         "valcol": "tag_id" },
     "repositories":           { "idcol": "repository_id",             "valcol": "repository_url" },
     "rights":                 { "idcol": "rights_id",                 "valcol": "rights_hash" },
+    "ror_affiliation_matches":{ "idcol": "ror_affiliation_match_id",  "valcol": "affiliation_string" },
     "settings":               { "idcol": "setting_id",                "valcol": "" },
     "subjects":               { "idcol": "subject_id",                "valcol": "subject" },
     "tags":                   { "idcol": "tag_id",                    "valcol": "tag" },

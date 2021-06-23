@@ -35,6 +35,7 @@ from harvester.SocrataRepository import SocrataRepository
 from harvester.DataStreamRepository import DataStreamRepository
 from harvester.ArcGISRepository import ArcGISRepository
 from harvester.DataCiteRepository import DataCiteRepository
+from harvester.DryadRepository import DryadRepository
 from harvester.DBInterface import DBInterface
 from harvester.HarvestLogger import HarvestLogger
 from harvester.TimeFormatter import TimeFormatter
@@ -95,6 +96,8 @@ if __name__ == "__main__":
     final_config['export_file_limit_mb'] = int(config['export'].get('export_file_limit_mb', 10))
     final_config['export_format'] = config['export'].get('export_format', "gmeta")
     final_config['socrata_app_token'] = config['socrata'].get('app_token', None)
+    final_config['ror_json_url'] = config['ror'].get('ror_json_url', None)
+    final_config['ror_data_file'] =  "data/ror-data.json"
     final_config['repository_id'] = None
 
     main_log = HarvestLogger(config['logging'])
@@ -150,6 +153,8 @@ if __name__ == "__main__":
                 repo = ArcGISRepository(final_config)
             elif repoconfig['type'] == "datacite":
                 repo = DataCiteRepository(final_config)
+            elif repoconfig['type'] == "dryad":
+                repo = DryadRepository(final_config)
             repo.setLogger(main_log)
             if 'copyerrorstoemail' in repoconfig and not repoconfig['copyerrorstoemail']:
                 main_log.setErrorsToEmail(False)
