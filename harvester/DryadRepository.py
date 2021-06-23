@@ -105,7 +105,7 @@ class DryadRepository(HarvestRepository):
                         self.logger.error("ROR record {} missing country".format(author['affiliationROR']))
                         continue
                 except KeyError:
-                        self.logger.error("ROR ID {} does not exist".format(author["affiliationROR"]))
+                        self.logger.info("ROR ID {} does not exist".format(author["affiliationROR"]))
                         continue
             if not is_canadian:
                 return False
