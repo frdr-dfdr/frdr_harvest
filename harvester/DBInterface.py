@@ -125,7 +125,6 @@ class DBInterface:
             res = cur.fetchone()
         if res is not None:
             setting_value = res['setting_value']
-        print("{} = {}".format(setting_name, setting_value))
         return setting_value
 
     def set_setting(self, setting_name, new_value):
