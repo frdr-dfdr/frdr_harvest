@@ -1,15 +1,14 @@
 {
     "repos": [
-        {
-            "name": "FRDR",
-            "url": "https://www.frdr-dfdr.ca/oai/request",
-            "homepage_url": "https://www.frdr-dfdr.ca/",
-            "set": "col_storagegroup1",
-            "thumbnail": "https://www.frdr-dfdr.ca/discover/img/sources/frdr_80x80.png",
-            "type": "oai",
-            "metadataprefix": "frdr",
-            "repo_refresh_days": 0,
-            "enabled": true
-        }
+     {
+          "name": "DataStream",
+          "url": "https://api.datacite.org/dois",
+          "homepage_url": "https://datastream.org/",
+          "thumbnail": "https://test.frdr.ca/discover/img/sources/datastream_80x80.png",
+          "type": "datastream",
+          "set": "wdgcf.datastream",
+          "item_url_pattern": "https://datastream.org/dataset/%id%",
+          "enabled": true
+      }
     ]
 }
