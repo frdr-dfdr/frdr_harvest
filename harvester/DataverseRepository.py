@@ -105,8 +105,8 @@ class DataverseRepository(HarvestRepository):
                     record["series"].append(dataverse_name)
             record["series"] = " // ".join(record["series"]) # list of sub-dataverse names
 
-        if "latestVersion" not in dataverse_record:
-            # Dataset is deaccessioned
+        if "latestVersion" not in dataverse_record or "Dryad2Dataverse" in record["series"]:
+            # Dataset is deaccessioned or duplicate
             record["deleted"] = 1
             record["title"], record["title_fr"] = "", ""
             return record
