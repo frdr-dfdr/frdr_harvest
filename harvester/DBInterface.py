@@ -863,7 +863,7 @@ class DBInterface:
                 if eid not in new_access_ids:
                     modified_upstream = True
                     self.delete_one_related_record("records_x_access", eid, record["record_id"])
-
+                    
         if "geobboxes" in record:
             existing_geobbox_recs = self.get_multiple_records("geobbox", "*", "record_id",
                                                                 record["record_id"])
