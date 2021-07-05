@@ -55,11 +55,11 @@ class DBInterface:
                     # Run this script to update the schema, then record it as done
                     with open("sql/" + str(self.dbtype) + "/" + filename, 'r') as scriptfile:
                         scriptcontents = scriptfile.read()
+                        self.set_setting("dbversion", scriptversion)
                     if self.dbtype == "postgres":
                         cur.execute(scriptcontents)
                     else:
                         cur.executescript(scriptcontents)
-                    self.set_setting("dbversion", scriptversion)
                     dbversion = scriptversion
                     print("Updated database to version: {:d}".format(scriptversion))  # No logger yet
 
