@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
-from flask import Flask, request, Response, got_request_exception
-from flask_restful import reqparse, abort, Api, Resource
+from flask import Flask, request, Response
+from flask_restful import abort, Api, Resource
 import configparser
 import logging
 import atexit
@@ -80,7 +80,7 @@ def get_config_ini(config_file):
     try:
         c.read(config_file)
         return c
-    except:
+    except Exception as e:
         return None
 
 

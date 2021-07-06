@@ -2,9 +2,6 @@ from harvester.HarvestRepository import HarvestRepository
 import requests
 import time
 import json
-import re
-import os.path
-from dateutil import parser
 
 
 class DataCiteRepository(HarvestRepository):
@@ -45,7 +42,7 @@ class DataCiteRepository(HarvestRepository):
                     page_number += 1
                     for record in response["data"]:
                         item_identifier = record["id"]
-                        result = self.db.write_header(item_identifier, self.repository_id)
+                        self.db.write_header(item_identifier, self.repository_id)
                         item_count = item_count + 1
                         if (item_count % self.update_log_after_numitems == 0):
                             tdelta = time.time() - self.tstart + 0.1
@@ -59,7 +56,7 @@ class DataCiteRepository(HarvestRepository):
                         page_number = page_number + 1
                         for record in response["data"]:
                             item_identifier = record["id"]
-                            result = self.db.write_header(item_identifier, self.repository_id)
+                            self.db.write_header(item_identifier, self.repository_id)
                             item_count = item_count + 1
                             if (item_count % self.update_log_after_numitems == 0):
                                 tdelta = time.time() - self.tstart + 0.1
@@ -68,7 +65,7 @@ class DataCiteRepository(HarvestRepository):
                         response = response.json()
                         try:
                             next = response["links"]["next"]
-                        except:
+                        except Exception as e:
                             next = None
                     break # exit while page_number < totalPages loop
 
@@ -139,7 +136,6 @@ class DataCiteRepository(HarvestRepository):
             for date in datacite_record["attributes"]["dates"]:
                 if date["dateType"] == "Created" and len(date["date"]) > 4:
                     record["pub_date"] = date["date"]
-                    dateType_found = True
                     break
 
         if len(datacite_record["attributes"]["subjects"]) > 0:
@@ -248,7 +244,7 @@ class DataCiteRepository(HarvestRepository):
             if self.dump_on_failure == True:
                 try:
                     print(datacite_record)
-                except:
+                except Exception as e:
                     pass
             # Touch the record so we do not keep requesting it on every run
             self.db.touch_record(record)

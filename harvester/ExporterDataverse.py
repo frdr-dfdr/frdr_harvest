@@ -115,7 +115,7 @@ class ExporterDataverse(Exporter.Exporter):
         try:
             with open('data.txt', 'w') as outfile:
                 json.dump(data, outfile)
-        except:
+        except Exception as e:
             self.logger.error("Unable to write output data to data.txt for Geodisy")
 
     def get_citation_metadata_field(self, record):
@@ -142,7 +142,7 @@ class ExporterDataverse(Exporter.Exporter):
             vals = self._rows_to_list(cur)
             for val in vals:
                 retlist.append({"authorName": self.json_dv_dict("authorName", "false", "primitive", val)})
-        except:
+        except Exception as e:
             self.logger.error("Unable to get author metadata field for creating Dataverse JSON")
         return retlist
 
@@ -156,7 +156,7 @@ class ExporterDataverse(Exporter.Exporter):
             vals = self._rows_to_list(cur)
             for val in vals:
                 retlist.append({"dsDescriptionValue": self.json_dv_dict("dsDescriptionValue", "false", "primitive", val)})
-        except:
+        except Exception as e:
             self.logger.error("Unable to get description metadata field for creating Dataverse JSON")
         return retlist
 
@@ -169,7 +169,7 @@ class ExporterDataverse(Exporter.Exporter):
             vals = self._rows_to_list(cur)
             for val in vals:
                 retlist.append(val)
-        except:
+        except Exception as e:
             self.logger.error("Unable to get subject metadata field for creating Dataverse JSON")
         return retlist
 
@@ -182,7 +182,7 @@ class ExporterDataverse(Exporter.Exporter):
             vals = self._rows_to_list(cur)
             for val in vals:
                 retlist.append({"keywordValue": self.json_dv_dict("keywordValue", "false", "primitive", val)})
-        except:
+        except Exception as e:
             self.logger.error("Unable to get keyword metadata field for creating Dataverse JSON")
         return retlist
 
@@ -198,7 +198,7 @@ class ExporterDataverse(Exporter.Exporter):
             vals = self._rows_to_list(cur)
             if vals:
                 retval = vals[0]
-        except:
+        except Exception as e:
             self.logger.error("Unable to get license metadata field for creating Dataverse JSON")
         return retval                
 
@@ -249,7 +249,7 @@ class ExporterDataverse(Exporter.Exporter):
                 }
                 if country != "" or state != "" or city != "" or other != "":
                     geos_coverage.append(location)
-        except:
+        except Exception as e:
             self.logger.error("Unable to get geoplace metadata fields for record: {}".format(record["record_id"]))
         if not geos_coverage:
             return ""
@@ -272,7 +272,7 @@ class ExporterDataverse(Exporter.Exporter):
                     coords.append(self.get_bbox(val))
             if coords:
                 return coords
-        except:
+        except Exception as e:
             self.logger.error("Unable to get geobbox metadata fields for creating json for Geodisy")
             return ""
 
@@ -295,7 +295,7 @@ class ExporterDataverse(Exporter.Exporter):
                 files.append(self.get_file_info(val, record))
             if files:
                 return files
-        except:
+        except Exception as e:
             self.logger.error("Unable to get geo file metadata fields for creating json for Geodisy")
 
     def get_file_info(self, file_info, record):

@@ -1,12 +1,8 @@
 import os
 import time
-import sys
 import hashlib
 import json
 import re
-import pdb
-
-import psycopg2
 from psycopg2.extras import DictCursor, RealDictCursor
 
 class DBInterface:
@@ -27,7 +23,7 @@ class DBInterface:
             if os.name == "posix":
                 try:
                     os.chmod(self.dbname, 0o664)
-                except:
+                except Exception as e:
                     pass
 
         elif self.dbtype == "postgres":
@@ -71,7 +67,7 @@ class DBInterface:
         self.logger = l
 
     def getConnection(self):
-        if self.connection == None:
+        if self.connection is None:
             if self.dbtype == "sqlite":
                 self.connection = self.dblayer.connect(self.dbname)
             elif self.dbtype == "postgres":
@@ -242,9 +238,9 @@ class DBInterface:
     def write_ror_affiliation_match(self, affiliation_string, ror_id, score, country):
         ror_affiliation_match_id = self.get_single_record_id("ror_affiliation_matches", affiliation_string)
         if ror_affiliation_match_id is not None:
-            self.delete_row_generic("ror_affiliation_matches", affiliation_string)
+            self.delete_row_generic("ror_affiliation_matches", affiliation_string, ror_affiliation_match_id)
         extras = {"ror_id": ror_id, "score": score, "country": country, "updated_timestamp": int(time.time())}
-        ror_affiliation_match_id = self.insert_related_record("ror_affiliation_matches", affiliation_string, **extras)
+        self.insert_related_record("ror_affiliation_matches", affiliation_string, **extras)
         return self.get_ror_from_affiliation(affiliation_string)
     
     def update_record(self, record_id, fields):
@@ -275,7 +271,7 @@ class DBInterface:
         try:
             cur.execute(self._prep("UPDATE records set deleted = 1, modified_timestamp = ?, upstream_modified_timestamp = ? where record_id=?"),
                         (time.time(), time.time(), record['record_id']))
-        except:
+        except Exception as e:
             self.logger.error("Unable to mark as deleted record {}".format(record['local_identifier']))
             return False
 
@@ -290,7 +286,7 @@ class DBInterface:
             self.delete_all_related_records("descriptions", record['record_id'])
             self.delete_all_related_records("geospatial", record['record_id'])
             self.delete_all_related_records("domain_metadata", record['record_id'])
-        except:
+        except Exception as e:
             self.logger.error(
                 "Unable to delete related table rows for record {}".format(record['local_identifier']))
             return False
@@ -303,7 +299,7 @@ class DBInterface:
         try:
             sqlstring = "DELETE from records where deleted=1"
             cur.execute(sqlstring)
-        except:
+        except Exception as e:
             return False
         return True
 
@@ -319,7 +315,7 @@ class DBInterface:
         try:
             sqlstring = "DELETE from {} where {}=? {}".format(tablename, columnname, extrawhere)
             cur.execute(self._prep(sqlstring), (column_value,))
-        except:
+        except Exception as e:
             return False
         return True
 
@@ -332,7 +328,7 @@ class DBInterface:
         cur = self.getRowCursor()
         try:
             cur.execute(self._prep(sqlstring), values )
-        except:
+        except Exception as e:
             return False
         return True
 
@@ -386,11 +382,13 @@ class DBInterface:
             if self.dbtype == "postgres":
                 cur.execute(self._prep(sqlstring + " RETURNING " + idcolumn), list(paramlist.values()))
                 cross_table_id = int(cur.fetchone()[idcolumn])
-            if self.dbtype == "sqlite":
+            elif self.dbtype == "sqlite":
                 cur.execute(self._prep(sqlstring), list(paramlist.values()))
                 cross_table_id = int(cur.lastrowid)
         except self.dblayer.IntegrityError as e:
             self.logger.error("Record insertion problem: {}".format(e))
+
+        return cross_table_id
 
 
     def get_multiple_records(self, tablename, columnlist, given_col, given_val, extrawhere="", **kwargs):
@@ -511,11 +509,10 @@ class DBInterface:
 
     def write_record(self, record, repo):
         repo_id = repo.repository_id
-        metadata_prefix = repo.metadataprefix.lower()
         domain_metadata = repo.domain_metadata
         modified_upstream = False # Track whether metadata changed since last crawl
 
-        if record == None:
+        if record is None:
             return None
         record["record_id"] = self.get_single_record_id("records", record["identifier"],
                                                         "and repository_id=" + str(repo_id))
@@ -1087,7 +1084,7 @@ class DBInterface:
         try:
             cur.execute(self._prep("UPDATE records set modified_timestamp = ? where record_id = ?"),
                         (time.time(), record['record_id']))
-        except:
+        except Exception as e:
             self.logger.error("Unable to update modified_timestamp for record id {}".format(record['record_id']))
             return False
 

@@ -37,7 +37,6 @@ from harvester.DBInterface import DBInterface
 from harvester.HarvestLogger import HarvestLogger
 from harvester.TimeFormatter import TimeFormatter
 from harvester.Lock import Lock
-from harvester.Exporter import Exporter
 from harvester.ExporterGmeta import ExporterGmeta
 from harvester.ExporterDataverse import ExporterDataverse
 

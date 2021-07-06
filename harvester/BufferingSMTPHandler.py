@@ -1,5 +1,4 @@
 import logging
-from logging.handlers import BufferingHandler
 import smtplib
 from email.mime.text import MIMEText
 

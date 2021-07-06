@@ -1,7 +1,6 @@
 import re
 import json
 import os
-import sys
 
 class Exporter(object):
     """ Read records from the database and export to given formats """
@@ -76,7 +75,7 @@ class Exporter(object):
     def _write_to_file(self, output, export_filepath, temp_filepath):
         try:
             os.mkdir(temp_filepath)
-        except:
+        except Exception as e:
             pass
 
         try:
@@ -97,17 +96,17 @@ class Exporter(object):
                 temp_filename = os.path.join(temp_filepath, export_basename)
                 with open(temp_filename, "w") as tempfile:
                     tempfile.write(output)
-        except:
+        except Exception as e:
             self.logger.error("Unable to write output data to temporary file: {}".format(temp_filename))
 
         try:
             os.remove(os.path.join(export_filepath, export_basename))
-        except:
+        except Exception as e:
             pass
 
         try:
             os.rename(temp_filename, os.path.join(export_filepath, export_basename))
-        except:
+        except Exception as e:
             self.logger.error("Unable to move temp file: {} to output file: {}".format(temp_filename,
                                                                                        os.path.join(export_filepath,
                                                                                                     export_basename)))
@@ -118,7 +117,7 @@ class Exporter(object):
             for f in os.listdir(dirname):
                 if re.search(pattern, f):
                     os.remove(os.path.join(dirname, f))
-        except:
+        except Exception as e:
             pass
 
     def export(self, **kwargs):
@@ -137,5 +136,5 @@ class Exporter(object):
                 output = "\n".join(delete_list)
                 self.export_format = "delete"
                 self._write_to_file(output, self.export_filepath, self.temp_filepath)
-            except:
+            except Exception as e:
                 pass

@@ -4,8 +4,6 @@ import json
 import logging
 import sys
 import logging.config
-import os
-import time
 import traceback
 import requests
 from harvester.DBInterface import DBInterface
@@ -125,7 +123,7 @@ def get_config_ini(config_file):
     try:
         c.read(config_file)
         return c
-    except:
+    except Exception as e:
         return None
 
 def main():
