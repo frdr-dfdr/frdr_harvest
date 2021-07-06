@@ -1,9 +1,6 @@
 from harvester.HarvestRepository import HarvestRepository
 import requests
 import time
-import json
-import re
-import os.path
 from dateutil import parser
 
 
@@ -60,7 +57,7 @@ class DataverseRepository(HarvestRepository):
                     # Write dataverse_hierarchy - minus the repository id - plus identifier as local_identifier
                     dataverse_hierarchy_string = "_".join(dataverse_hierarchy_split[1:])
                     combined_identifier = combined_identifier + "_" + dataverse_hierarchy_string
-                result = self.db.write_header(combined_identifier, self.repository_id)
+                self.db.write_header(combined_identifier, self.repository_id)
                 item_count = item_count + 1
                 if (item_count % self.update_log_after_numitems == 0):
                     tdelta = time.time() - self.tstart + 0.1
@@ -274,7 +271,7 @@ class DataverseRepository(HarvestRepository):
             if self.dump_on_failure == True:
                 try:
                     print(dataverse_record)
-                except:
+                except Exception as e:
                     pass
             # Touch the record so we do not keep requesting it on every run
             self.db.touch_record(record)

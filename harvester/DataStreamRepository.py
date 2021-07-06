@@ -4,7 +4,6 @@ import urllib
 from dateutil import parser
 import time
 import json
-import xml.etree.ElementTree as ET
 import requests
 
 
@@ -44,7 +43,7 @@ class DataStreamRepository(HarvestRepository):
                 page_number += 1
                 for record in response["data"]:
                     item_identifier = record["attributes"]["url"]
-                    result = self.db.write_header(item_identifier, self.repository_id)
+                    self.db.write_header(item_identifier, self.repository_id)
                     item_count = item_count + 1
                     if (item_count % self.update_log_after_numitems == 0):
                         tdelta = time.time() - self.tstart + 0.1
@@ -116,7 +115,7 @@ class DataStreamRepository(HarvestRepository):
                 if len(boxcoordinates) == 4:
                     record["geobboxes"] = [{"westLon": boxcoordinates[0], "southLat": boxcoordinates[1],
                                             "eastLon": boxcoordinates[2], "northLat": boxcoordinates[3]}]
-            except:
+            except Exception as e:
                 pass
 
         return record
@@ -145,7 +144,7 @@ class DataStreamRepository(HarvestRepository):
             if self.dump_on_failure == True:
                 try:
                     print(item_response_content)
-                except:
+                except Exception as e:
                     pass
             # Touch the record so we do not keep requesting it on every run
             self.db.touch_record(record)

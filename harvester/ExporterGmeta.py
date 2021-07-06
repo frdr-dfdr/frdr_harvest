@@ -18,7 +18,7 @@ class ExporterGmeta(Exporter.Exporter):
 
         try:
             lastrun_timestamp = int(self.db.get_setting("last_run_timestamp"))
-        except:
+        except Exception as e:
             lastrun_timestamp = 0
 
         records_con = self.db.getConnection()
@@ -197,10 +197,10 @@ class ExporterGmeta(Exporter.Exporter):
                 litecur.execute(self.db._prep(
                     "SELECT ds.namespace, dm.field_name, dm.field_value FROM domain_metadata dm, domain_schemas ds WHERE dm.schema_id=ds.schema_id and dm.record_id=?"),
                                 (record["record_id"],))
-                for row in litecur:
-                    domain_namespace = str(row["namespace"])
-                    field_name = str(row["field_name"])
-                    field_value = str(row["field_value"])
+                for row2 in litecur:
+                    domain_namespace = str(row2["namespace"])
+                    field_name = str(row2["field_name"])
+                    field_value = str(row2["field_value"])
                     if domain_namespace == "http://datacite.org/schema/kernel-4":
                         custom_label = "datacite_" + field_name
                     else:

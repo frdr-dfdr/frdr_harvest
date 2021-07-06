@@ -3,7 +3,6 @@ import requests
 import time
 import json
 import re
-import os.path
 from dateutil import parser
 
 
@@ -54,7 +53,7 @@ class OpenDataSoftRepository(HarvestRepository):
                     break
                 for record in records["datasets"]:
                     item_identifier = record["datasetid"]
-                    result = self.db.write_header(item_identifier, self.repository_id)
+                    self.db.write_header(item_identifier, self.repository_id)
                     item_count = item_count + 1
                     if (item_count % self.update_log_after_numitems == 0):
                         tdelta = time.time() - self.tstart + 0.1
@@ -124,7 +123,7 @@ class OpenDataSoftRepository(HarvestRepository):
             try:
                 item_response = requests.get(record_url)
                 opendatasoft_record = json.loads(item_response.text)
-            except:
+            except Exception as e:
                 # Exception means this URL was not found
                 self.db.delete_record(record)
                 return True
@@ -137,7 +136,7 @@ class OpenDataSoftRepository(HarvestRepository):
             if self.dump_on_failure == True:
                 try:
                     print(opendatasoft_record)
-                except:
+                except Exception as e:
                     pass
             # Touch the record so we do not keep requesting it on every run
             self.db.touch_record(record)

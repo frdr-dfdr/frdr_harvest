@@ -4,7 +4,6 @@ import ckanapi
 import time
 import json
 import re
-import os.path
 import ftfy
 import requests
 
@@ -68,7 +67,7 @@ class CKANRepository(HarvestRepository):
             if not self.ckan_include_identifier_pattern or self.ckan_include_identifier_pattern in ckan_identifier: # Yukon
                 if self.ckan_strip_from_identifier:
                     ckan_identifier = ckan_identifier.replace(self.ckan_strip_from_identifier,"")
-                result = self.db.write_header(ckan_identifier, self.repository_id)
+                self.db.write_header(ckan_identifier, self.repository_id)
                 item_count = item_count + 1
                 if (item_count % self.update_log_after_numitems == 0):
                     tdelta = time.time() - self.tstart + 0.1
@@ -96,7 +95,7 @@ class CKANRepository(HarvestRepository):
                 record["creator"] = []
                 for author in authors:
                     record["creator"].append(author["author_name"])
-            except:
+            except Exception as e:
                 record["creator"] = ckan_record['author']
         elif ('maintainer' in ckan_record) and ckan_record['maintainer']:
             record["creator"] = ckan_record['maintainer']
@@ -298,7 +297,7 @@ class CKANRepository(HarvestRepository):
             try:
                 month_day_year = record["pub_date"].split(", ")[1].split(" - ")[0].split("/")
                 record["pub_date"] = month_day_year[2] + "-" + month_day_year[0] + "-" + month_day_year[1]
-            except:
+            except Exception as e:
                 pass
 
         # Some date formats have a trailing timestamp after date (ie: "2014-12-10T15:05:03.074998Z")
@@ -314,7 +313,7 @@ class CKANRepository(HarvestRepository):
 
         try:
             record["series"] = ckan_record["data_series_name"]["en"]
-        except:
+        except Exception as e:
             record["series"] = ckan_record.get("data_series_name", "")
 
         if isinstance(record["series"], dict):
@@ -486,7 +485,7 @@ class CKANRepository(HarvestRepository):
             if self.dump_on_failure == True:
                 try:
                     print(ckan_record)
-                except:
+                except Exception as e:
                     pass
             # Touch the record so we do not keep requesting it on every run
             self.db.touch_record(record)

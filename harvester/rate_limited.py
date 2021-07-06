@@ -12,7 +12,7 @@ def rate_limited(max_per_second):
         preferred_clock = time.clock # Earlier than Python 3.8
 
     def decorate(func):
-        last_time_called = preferred_clock()
+        last_time_called = preferred_clock() # lgtm [py/unused-local-variable]
 
         @wraps(func)
         def rate_limited_function(*args, **kwargs):
