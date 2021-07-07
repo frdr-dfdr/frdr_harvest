@@ -258,6 +258,7 @@ class OAIRepository(HarvestRepository):
                 for geo_place in record["http://datacite.org/schema/kernel-4#geolocationPlace"]:
                     print("Geoplace: "+geo_place)
                     place = []
+                    place = {}
                     place_split = geo_place.split(';')
                     place["country"] = place_split[3]
                     place["province_state"] = place_split[2]
