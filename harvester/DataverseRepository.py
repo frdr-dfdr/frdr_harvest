@@ -1,7 +1,6 @@
 from harvester.HarvestRepository import HarvestRepository
 import requests
 import time
-from dateutil import parser
 
 
 class DataverseRepository(HarvestRepository):
