@@ -253,18 +253,17 @@ class OAIRepository(HarvestRepository):
                 record["pub_date"] = record["dateissued"]
 
             if "http://datacite.org/schema/kernel-4#geolocationPlace" in record:
-                #record["coverage"] = record.get("http://datacite.org/schema/kernel-4#geolocationPlace")
                 record["geoplaces"] = []
                 for geo_place in record["http://datacite.org/schema/kernel-4#geolocationPlace"]:
                     print("Geoplace: "+geo_place)
-                    place = []
-                    place = {}
                     place_split = geo_place.split(';')
-                    place["country"] = place_split[3]
-                    place["province_state"] = place_split[2]
-                    place["city"] = place_split[1]
-                    place["other"] = place_split[0]
-                    record["geoplaces"].append(place)
+                    if len(place_split) > 3:
+                        place = {}
+                        place["country"] = place_split[3]
+                        place["province_state"] = place_split[2]
+                        place["city"] = place_split[1]
+                        place["other"] = place_split[0]
+                        record["geoplaces"].append(place)
 
             if "http://datacite.org/schema/kernel-4#geolocationPoint" in record:
                 record["geopoints"] = []
