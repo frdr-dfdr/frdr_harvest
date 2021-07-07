@@ -87,6 +87,7 @@ class HarvestRepository(object):
                 self.logger.info("This repo is not yet due to be harvested")
         else:
             self.logger.info("This repo is not enabled for harvesting")
+            self.db.set_repo_enabled(self.repository_id, self.enabled)
 
     def load_ror_data(self):
         # Check if we have the most current ROR data saved locally

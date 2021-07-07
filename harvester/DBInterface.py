@@ -174,7 +174,7 @@ class DBInterface:
                         self.record_refresh_days, self.repo_refresh_days, self.homepage_url, self.repo_oai_name))
                     self.repo_id = int(cur.fetchone()['repository_id'])
 
-                if self.dbtype == "sqlite":
+                elif self.dbtype == "sqlite":
                     cur.execute(self._prep("""INSERT INTO repositories
                         (repository_url, repository_set, repository_name, repository_type, repository_thumbnail, 
                         last_crawl_timestamp, item_url_pattern, enabled, abort_after_numerrors,
@@ -262,10 +262,14 @@ class DBInterface:
         cur.execute(self._prep("update repositories set last_crawl_timestamp = ? where repository_id = ?"),
                     (int(time.time()), repo_id))
 
+    def set_repo_enabled(self, repo_id, enabled):
+        cur = self.getRowCursor()
+        cur.execute(self._prep("update repositories set enabled = ? where repository_id = ?"),
+                    (enabled, repo_id))
+
     def delete_record(self, record):
         if record['record_id'] == 0:
             return False
-
 
         cur = self.getRowCursor()
         try:
