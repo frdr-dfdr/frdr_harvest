@@ -886,6 +886,9 @@ class DBInterface:
                         geobbox["eastLon"] = float(geobbox["eastLon"])
                         geobbox["northLat"] = float(geobbox["northLat"])
                         geobbox["southLat"] = float(geobbox["southLat"])
+                        # Check all coordinates are valid numbers
+                        if not (self.check_lat(geobbox.get("northLat")) and self.check_lat(geobbox.get("southLat")) and self.check_long(geobbox.get("westLon")) and self.check_long(geobbox.get("eastLon"))):
+                            continue
                         if geobbox["westLon"] != geobbox["eastLon"] or geobbox["northLat"] != geobbox["southLat"]:
                             # If west/east or north/south don't match, this is a box
                             extras = {"westLon": geobbox["westLon"], "eastLon": geobbox["eastLon"],
@@ -920,6 +923,9 @@ class DBInterface:
                     try:
                         geopoint["lat"] = float(geopoint["lat"])
                         geopoint["lon"] = float(geopoint["lon"])
+                        # Check coordinates are valid numbers
+                        if not (self.check_lat(geopoint.get("lat")) and self.check_long(geopoint.get("lon"))):
+                            continue
                         extras = {"lat": geopoint["lat"], "lon": geopoint["lon"]}
                         geopoint_id = self.get_single_record_id("geopoint", record["record_id"], **extras)
                         if geopoint_id is None:
@@ -1117,3 +1123,13 @@ class DBInterface:
                               " record header: ?", record['record_id'], e)
 
         return None
+
+    def check_lat(self,lat):
+        if lat > 90 or lat < -90:
+            return False
+        return True
+
+    def check_long(self,long):
+        if long > 180 or long < -180:
+            return False
+        return True
