@@ -1,9 +1,5 @@
 from harvester.HarvestRepository import HarvestRepository
 import requests
-import time
-import json
-import re
-import os.path
 from dateutil import parser
 
 

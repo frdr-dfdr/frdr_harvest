@@ -1,18 +1,13 @@
-import urllib
-
 import requests as requests
-
 from harvester.HarvestRepository import HarvestRepository
 from harvester.rate_limited import rate_limited
 from sickle import Sickle
-from sickle.iterator import BaseOAIIterator, OAIItemIterator, OAIResponseIterator
-from sickle.models import OAIItem, Record, Header
-from sickle.oaiexceptions import BadArgument, CannotDisseminateFormat, IdDoesNotExist, NoSetHierarchy, \
-    BadResumptionToken, NoRecordsMatch, OAIError
+from sickle.iterator import BaseOAIIterator
+from sickle.models import OAIItem, Header
+from sickle.oaiexceptions import IdDoesNotExist
 from collections import defaultdict
 import re
 import dateparser
-import os.path
 import time
 import json
 
@@ -100,7 +95,7 @@ def get_frdr_filenames(base_url):
         for f in files:
             file_names.append(f["name"])
         return file_names
-    except:
+    except Exception as e:
         return ""
 
 
@@ -121,7 +116,7 @@ class OAIRepository(HarvestRepository):
                 records = self.sickle.ListRecords(metadataPrefix=self.metadataprefix, ignore_deleted=True)
             else:
                 records = self.sickle.ListRecords(metadataPrefix=self.metadataprefix, ignore_deleted=True, set=self.set)
-        except:
+        except Exception as e:
             self.logger.info("No items were found")
 
         kwargs = {
@@ -179,7 +174,6 @@ class OAIRepository(HarvestRepository):
                 # probably not a valid OAI record
                 # Islandora throws this for non-object directories
                 self.logger.debug("AttributeError while working on item {}".format(item_count))
-                pass
 
             except StopIteration:
                 break
@@ -314,7 +308,7 @@ class OAIRepository(HarvestRepository):
                             geofile["filename"] = f
                             geofile["uri"] = endpoint_hostname + endpoint_path + "submitted_data/" + f
                             record.setdefault("geofiles", []).append(geofile)
-                except:
+                except Exception as e:
                     self.logger.error("Something wrong trying to access files from hostname: {} , path: {}".format(endpoint_hostname, endpoint_path))
 
         if "identifier" not in record:
@@ -391,7 +385,7 @@ class OAIRepository(HarvestRepository):
             if date_object is None:
                 date_object = dateparser.parse(record["pub_date"], date_formats=["%Y%m%d"])
             record["pub_date"] = date_object.strftime("%Y-%m-%d")
-        except:
+        except Exception as e:
             self.logger.error("Something went wrong parsing the date, {} from {}".format(record["pub_date"]
                               , (record["dc:source"] if record["identifier"] is None else record["identifier"])))
             return None
@@ -421,7 +415,7 @@ class OAIRepository(HarvestRepository):
             if "tags_fr" not in record:
                 record["tags_fr"] = record.get("subject")
                 record.pop("subject", None)
-                if record["tags_fr"] == None:
+                if record["tags_fr"] is None:
                     record.pop("tags_fr")
         else:
             if isinstance(record["title"], list):
@@ -433,7 +427,7 @@ class OAIRepository(HarvestRepository):
             if "tags" not in record:
                 record["tags"] = record.get("subject")
                 record.pop("subject", None)
-                if record["tags"] == None:
+                if record["tags"] is None:
                     record.pop("tags")
 
         if "publisher" in record:
@@ -540,7 +534,7 @@ class OAIRepository(HarvestRepository):
             if self.dump_on_failure == True:
                 try:
                     print(single_record.metadata)
-                except:
+                except Exception as e:
                     pass
             # Touch the record so we do not keep requesting it on every run
             self.db.touch_record(record)

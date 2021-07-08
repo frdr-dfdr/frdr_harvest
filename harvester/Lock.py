@@ -14,14 +14,14 @@ class Lock:
                 self.lockfile = open('lockfile', 'w')
                 self.lockfile.write(str(os.getpid()) + "\n")
                 self.lockfile.flush()
-            except:
+            except Exception as e:
                 sys.stderr.write(
                     "ERROR: was harvester runnning under a different user previously? (could not write to lockfile)\n")
                 raise SystemExit
 
             try:
                 os.chmod('lockfile', 0o664)
-            except:
+            except Exception as e:
                 pass
 
             try:

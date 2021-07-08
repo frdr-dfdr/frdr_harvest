@@ -87,6 +87,7 @@ class HarvestRepository(object):
                 self.logger.info("This repo is not yet due to be harvested")
         else:
             self.logger.info("This repo is not enabled for harvesting")
+            self.db.set_repo_enabled(self.repository_id, self.enabled)
 
     def load_ror_data(self):
         # Check if we have the most current ROR data saved locally
@@ -117,7 +118,7 @@ class HarvestRepository(object):
                         self.db.set_setting("ror_json_url",self.ror_json_url)
                     else:
                         self.logger.error("Expected a 302 redirect on the ror_json_url but instead got {}".format(res.status_code))
-                except:
+                except Exception as e:
                     # This may be OK for this run, we could still use old copy for now if we have it
                     self.logger.error("Could not download and/or save ROR data file")
         else:
@@ -131,11 +132,9 @@ class HarvestRepository(object):
                 for ror_entry in ror_data_list:
                     self.ror_data[ror_entry["id"]] = ror_entry
             return True
-        except:
+        except Exception as e:
             self.logger.error("Error in loading or parsing ROR data file {}".format(self.ror_data_file))
             return False
-
-        return True
 
     def _update_record(self, record):
         """ This method to be overridden """
@@ -145,7 +144,7 @@ class HarvestRepository(object):
         """ This method will be called by a child class only, so that it uses its own _update_record() method """
         if self.enabled != True:
             return True
-        if self.db == None:
+        if self.db is None:
             self.logger.error("Database configuration is not complete")
             return False
         record_count = 0
@@ -210,7 +209,7 @@ class HarvestRepository(object):
                 coord = self.dms2dd(positive, parts[0])
             else:
                 return ""
-        except:
+        except Exception as e:
             return ""
         return str(coord) if coord != 3600 else ""
 

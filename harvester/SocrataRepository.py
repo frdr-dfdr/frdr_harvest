@@ -3,9 +3,6 @@ from harvester.rate_limited import rate_limited
 from sodapy import Socrata
 from datetime import datetime
 import time
-import json
-import re
-import os.path
 
 
 class SocrataRepository(HarvestRepository):
@@ -33,7 +30,7 @@ class SocrataRepository(HarvestRepository):
 
         item_count = 0
         for rec in records:
-            result = self.db.write_header(rec["resource"]["id"], self.repository_id)
+            self.db.write_header(rec["resource"]["id"], self.repository_id)
             item_count = item_count + 1
             if (item_count % self.update_log_after_numitems == 0):
                 tdelta = time.time() - self.tstart + 0.1
@@ -141,7 +138,7 @@ class SocrataRepository(HarvestRepository):
             if self.dump_on_failure == True:
                 try:
                     print(socrata_record)
-                except:
+                except Exception as e:
                     pass
             if "404" in str(e):
                 # The record was deleted from source - "404 Client Error: Not Found"

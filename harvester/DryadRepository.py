@@ -2,9 +2,6 @@ from harvester.HarvestRepository import HarvestRepository
 import requests
 import time
 import json
-import re
-import os.path
-from dateutil import parser
 from datetime import datetime
 import urllib
 
@@ -61,7 +58,7 @@ class DryadRepository(HarvestRepository):
                 for record in records:
                     if '_links' in record and record['_links']:
                         item_identifier = record["identifier"]
-                        result = self.db.write_header(item_identifier, self.repository_id)
+                        self.db.write_header(item_identifier, self.repository_id)
                         item_count = item_count + 1
                         if (item_count % self.update_log_after_numitems == 0):
                             tdelta = time.time() - self.tstart + 0.1
@@ -137,7 +134,7 @@ class DryadRepository(HarvestRepository):
         record["series"] = ""
         try:
             record["pub_date"] = dryad_record["publicationDate"]
-        except:
+        except Exception as e:
             record["pub_date"] = dryad_record["lastModificationDate"]
         record["description"] = dryad_record.get("abstract", "")
         record["rights"] = dryad_record["license"]
@@ -178,7 +175,7 @@ class DryadRepository(HarvestRepository):
             if self.dump_on_failure == True:
                 try:
                     print(dryad_record)
-                except:
+                except Exception as e:
                     pass
             # Touch the record so we do not keep requesting it on every run
             self.db.touch_record(record)
