@@ -249,20 +249,21 @@ class OAIRepository(HarvestRepository):
             if "http://datacite.org/schema/kernel-4#geolocationPlace" in record:
                 record["geoplaces"] = []
                 for geo_place in record["http://datacite.org/schema/kernel-4#geolocationPlace"]:
-                    print("Geoplace: "+geo_place)
                     place_split = geo_place.split(';')
-                    if len(place_split) > 3:
+                    if len(place_split) == 4 or (len(place_split) == 5 and place_split[4] == ""):
                         place = {}
                         place["country"] = place_split[3]
                         place["province_state"] = place_split[2]
                         place["city"] = place_split[1]
                         place["other"] = place_split[0]
                         record["geoplaces"].append(place)
+                    else:
+                        place = {"place_name": geo_place}
+                    record["geoplaces"].append(place)
 
             if "http://datacite.org/schema/kernel-4#geolocationPoint" in record:
                 record["geopoints"] = []
                 for geopoint in record["http://datacite.org/schema/kernel-4#geolocationPoint"]:
-                    print("Geopoint: " + geopoint)
                     point_split = geopoint.split()
                     if len(point_split) == 2:
                         record["geopoints"].append({"lat": point_split[0], "lon": point_split[1]})
@@ -270,7 +271,6 @@ class OAIRepository(HarvestRepository):
             if "http://datacite.org/schema/kernel-4#geolocationBox" in record:
                 record["geobboxes"] = []
                 for geobbox in record["http://datacite.org/schema/kernel-4#geolocationBox"]:
-                    print("GeoBBox: " + geobbox)
                     boxcoordinates = geobbox.split()
                     if len(boxcoordinates) == 4:
                         record["geobboxes"].append({"southLat": boxcoordinates[0], "westLon": boxcoordinates[1],
