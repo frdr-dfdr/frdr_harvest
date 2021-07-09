@@ -937,11 +937,11 @@ class DBInterface:
                         except Exception as e:
                             self.logger.error("Unable to update geobbox for record id {}: {}".format(record['record_id'], e))
 
-            # Remove any existing boxes that aren't also in the new boxes
-            for eid in existing_geobbox_ids:
-                if eid not in new_geobbox_ids:
-                    self.delete_row_generic("geobbox", "geobbox_id", eid)
-                    modified_upstream = True
+                # Remove any existing boxes that aren't also in the new boxes
+                for eid in existing_geobbox_ids:
+                    if eid not in new_geobbox_ids:
+                        self.delete_row_generic("geobbox", "geobbox_id", eid)
+                        modified_upstream = True
 
             if "geopoints" in record:
                 existing_geopoint_recs = self.get_multiple_records("geopoint", "*", "record_id",
