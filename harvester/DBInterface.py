@@ -960,6 +960,7 @@ class DBInterface:
                             geopoint_id = self.get_single_record_id("geopoint", record["record_id"], **extras)
                             if geopoint_id is None:
                                 self.insert_related_record("geopoint", record["record_id"], **extras)
+                                #modified_upstream = True # Uncomment when Geodisy starts processing points
                             if geopoint_id is not None:
                                 new_geopoint_ids.append(geopoint_id)
                         except Exception as e:
