@@ -147,7 +147,7 @@ class DBInterface:
                 try:
                     self.logger.debug("This repo already exists in the database; updating")
                     cur.execute(self._prep("""UPDATE repositories
-                        set repository_url=?, repository_set=?, repository_name=?, repository_type=?, 
+                        set repository_url=?, repository_set=?, repository_name=?, repository_type=?,
                         repository_thumbnail=?, last_crawl_timestamp=?, item_url_pattern=?,enabled=?,
                         abort_after_numerrors=?,max_records_updated_per_run=?,update_log_after_numitems=?,
                         record_refresh_days=?,repo_refresh_days=?,homepage_url=?,repo_oai_name=?
@@ -167,7 +167,7 @@ class DBInterface:
                     self.logger.debug("This repo does not exist in the database; adding")
                     if self.dbtype == "postgres":
                         cur.execute(self._prep("""INSERT INTO repositories
-                            (repository_url, repository_set, repository_name, repository_type, repository_thumbnail, 
+                            (repository_url, repository_set, repository_name, repository_type, repository_thumbnail,
                             last_crawl_timestamp, item_url_pattern, enabled,
                             abort_after_numerrors,max_records_updated_per_run,update_log_after_numitems,
                             record_refresh_days,repo_refresh_days,homepage_url,repo_oai_name)
@@ -181,7 +181,7 @@ class DBInterface:
 
                     if self.dbtype == "sqlite":
                         cur.execute(self._prep("""INSERT INTO repositories
-                            (repository_url, repository_set, repository_name, repository_type, repository_thumbnail, 
+                            (repository_url, repository_set, repository_name, repository_type, repository_thumbnail,
                             last_crawl_timestamp, item_url_pattern, enabled, abort_after_numerrors,
                             max_records_updated_per_run,update_log_after_numitems,record_refresh_days,repo_refresh_days,
                             homepage_url,repo_oai_name)
@@ -247,13 +247,13 @@ class DBInterface:
         extras = {"ror_id": ror_id, "score": score, "country": country, "updated_timestamp": int(time.time())}
         self.insert_related_record("ror_affiliation_matches", affiliation_string, **extras)
         return self.get_ror_from_affiliation(affiliation_string)
-    
+
     def update_record(self, record_id, fields):
         update_record_sql = "update records set "
         update_cols = []
         update_vals = []
         for key,value in fields.items():
-            update_cols.append("{} = ?".format(key)) 
+            update_cols.append("{} = ?".format(key))
             update_vals.append(value)
         update_record_sql += ", ".join(update_cols)
         update_record_sql += " where record_id = ?"
@@ -519,7 +519,7 @@ class DBInterface:
             try:
                 if self.dbtype == "postgres":
                     cur.execute(self._prep(
-                        """INSERT INTO records (title, title_fr, pub_date, series, modified_timestamp, source_url, 
+                        """INSERT INTO records (title, title_fr, pub_date, series, modified_timestamp, source_url,
                         deleted, local_identifier, item_url, repository_id, upstream_modified_timestamp)
                         VALUES(?,?,?,?,?,?,?,?,?,?,?) RETURNING record_id"""),
                         (rec["title"], rec["title_fr"], rec["pub_date"],  rec["series"], time.time(), source_url, 0,
@@ -527,7 +527,7 @@ class DBInterface:
                     returnvalue = int(cur.fetchone()['record_id'])
                 if self.dbtype == "sqlite":
                     cur.execute(self._prep(
-                        """INSERT INTO records (title, title_fr, pub_date, series, modified_timestamp, source_url, 
+                        """INSERT INTO records (title, title_fr, pub_date, series, modified_timestamp, source_url,
                         deleted, local_identifier, item_url, repository_id, upstream_modified_timestamp)
                         VALUES(?,?,?,?,?,?,?,?,?,?,?)"""),
                         (rec["title"], rec["title_fr"], rec["pub_date"], rec["series"], time.time(), source_url, 0,
@@ -583,7 +583,7 @@ class DBInterface:
                     elif existing_record["local_identifier"] != record["identifier"]:
                         modified_upstream = True
                 cur.execute(self._prep(
-                    """UPDATE records set title=?, title_fr=?, pub_date=?, series=?, modified_timestamp=?, source_url=?, 
+                    """UPDATE records set title=?, title_fr=?, pub_date=?, series=?, modified_timestamp=?, source_url=?,
                     deleted=?, local_identifier=?, item_url=?
                     WHERE record_id = ?"""),
                     (record["title"], record["title_fr"], record["pub_date"], record["series"], time.time(),
@@ -916,6 +916,9 @@ class DBInterface:
                             geobbox["eastLon"] = float(geobbox["eastLon"])
                             geobbox["northLat"] = float(geobbox["northLat"])
                             geobbox["southLat"] = float(geobbox["southLat"])
+                            # Check all coordinates are valid numbers
+                            if not (self.check_lat(geobbox.get("northLat")) and self.check_lat(geobbox.get("southLat")) and self.check_long(geobbox.get("westLon")) and self.check_long(geobbox.get("eastLon"))):
+                                continue
                             if geobbox["westLon"] != geobbox["eastLon"] or geobbox["northLat"] != geobbox["southLat"]:
                                 # If west/east or north/south don't match, this is a box
                                 extras = {"westLon": geobbox["westLon"], "eastLon": geobbox["eastLon"],
@@ -950,11 +953,14 @@ class DBInterface:
                         try:
                             geopoint["lat"] = float(geopoint["lat"])
                             geopoint["lon"] = float(geopoint["lon"])
+                            # Check coordinates are valid numbers
+                            if not (self.check_lat(geopoint.get("lat")) and self.check_long(geopoint.get("lon"))):
+                                continue
                             extras = {"lat": geopoint["lat"], "lon": geopoint["lon"]}
                             geopoint_id = self.get_single_record_id("geopoint", record["record_id"], **extras)
                             if geopoint_id is None:
                                 self.insert_related_record("geopoint", record["record_id"], **extras)
-                                modified_upstream = True
+                                #modified_upstream = True # Uncomment when Geodisy starts processing points
                             if geopoint_id is not None:
                                 new_geopoint_ids.append(geopoint_id)
                         except Exception as e:
@@ -1106,7 +1112,7 @@ class DBInterface:
                 , recs.modified_timestamp, recs.local_identifier, recs.item_url
                 , repos.repository_id, repos.repository_type, recs.geodisy_harvested
                 FROM records recs, repositories repos
-                where recs.repository_id = repos.repository_id and recs.modified_timestamp < ? 
+                where recs.repository_id = repos.repository_id and recs.modified_timestamp < ?
                 and repos.repository_id = ? and recs.deleted = 0
                 LIMIT ?"""), (stale_timestamp, repo_id, max_records_updated_per_run))
             if cur is not None:
@@ -1155,3 +1161,13 @@ class DBInterface:
                                   " record header: ?", record['record_id'], e)
 
         return None
+
+    def check_lat(self,lat):
+        if lat > 90 or lat < -90:
+            return False
+        return True
+
+    def check_long(self,long):
+        if long > 180 or long < -180:
+            return False
+        return True
