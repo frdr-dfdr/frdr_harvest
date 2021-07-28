@@ -113,15 +113,14 @@ class DBInterface:
         setting_value = 0
         con = self.getConnection()
         res = None
-        with con:
-            cur = self.getDictCursor()
-            cur.execute(
-                self._prep("select setting_value from settings where setting_name = ? order by setting_value desc"),
-                (setting_name,))
-            if cur is not None:
-                res = cur.fetchone()
-            if res is not None:
-                setting_value = res['setting_value']
+        cur = self.getDictCursor()
+        cur.execute(
+            self._prep("select setting_value from settings where setting_name = ? order by setting_value desc"),
+            (setting_name,))
+        if cur is not None:
+            res = cur.fetchone()
+        if res is not None:
+            setting_value = res['setting_value']
         return setting_value
 
     def set_setting(self, setting_name, new_value):
