@@ -34,32 +34,31 @@ class DBInterface:
             raise ValueError('Database type must be sqlite or postgres in config file')
 
         con = self.getConnection()
-        with con:
-            cur = self.getRowCursor()
+        cur = self.getRowCursor()
 
-            # This table must always exist
-            cur.execute(
-                "create table if not exists "
-                "settings (setting_id INTEGER PRIMARY KEY NOT NULL, setting_name TEXT, setting_value TEXT)")
+        # This table must always exist
+        cur.execute(
+            "create table if not exists "
+            "settings (setting_id INTEGER PRIMARY KEY NOT NULL, setting_name TEXT, setting_value TEXT)")
 
-            # Determine if the database schema needs to be updated
-            dbversion = int(self.get_setting("dbversion"))
-            files = os.listdir("sql/" + str(self.dbtype) + "/")
-            files.sort()
-            for filename in files:
-                if filename.endswith(".sql"):
-                    scriptversion = int(filename.split('.')[0])
-                    if scriptversion > dbversion:
-                        # Run this script to update the schema, then record it as done
-                        with open("sql/" + str(self.dbtype) + "/" + filename, 'r') as scriptfile:
-                            scriptcontents = scriptfile.read()
-                        if self.dbtype == "postgres":
-                            cur.execute(scriptcontents)
-                        elif self.dbtype == "sqlite":
-                            cur.executescript(scriptcontents)
-                        self.set_setting("dbversion", scriptversion)
-                        dbversion = scriptversion
-                        print("Updated database to version: {:d}".format(scriptversion))  # No logger yet
+        # Determine if the database schema needs to be updated
+        dbversion = int(self.get_setting("dbversion"))
+        files = os.listdir("sql/" + str(self.dbtype) + "/")
+        files.sort()
+        for filename in files:
+            if filename.endswith(".sql"):
+                scriptversion = int(filename.split('.')[0])
+                if scriptversion > dbversion:
+                    # Run this script to update the schema, then record it as done
+                    with open("sql/" + str(self.dbtype) + "/" + filename, 'r') as scriptfile:
+                        scriptcontents = scriptfile.read()
+                    if self.dbtype == "postgres":
+                        cur.execute(scriptcontents)
+                    elif self.dbtype == "sqlite":
+                        cur.executescript(scriptcontents)
+                    self.set_setting("dbversion", scriptversion)
+                    dbversion = scriptversion
+                    print("Updated database to version: {:d}".format(scriptversion))  # No logger yet
 
         self.tabledict = {}
         with open("sql/tables.json", 'r') as jsonfile:
