@@ -541,7 +541,7 @@ class DBInterface:
     def write_record(self, record, repo):
         repo_id = repo.repository_id
         domain_metadata = repo.domain_metadata
-        modified_upstream = False # Track whether metadata changed since last crawl
+        modified_upstream = False  # Track whether metadata changed since last crawl
 
         if record is None:
             return None

@@ -1,0 +1,1 @@
+alter table records add column files_size INTEGER DEFAULT 0;

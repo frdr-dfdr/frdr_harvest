@@ -99,6 +99,21 @@ def get_frdr_filenames(base_url):
         return ""
 
 
+def get_frdr_files_size(base_url):
+    if base_url == "":
+        return 0
+    full_url = base_url + "file_sizes_perm.json?download=1:1"
+    session = requests.Session()
+    session.headers.update({'referer': full_url})
+    file = session.get(full_url)
+    file_text = file.text
+    try:
+        data = json.loads(file_text)
+        return data["contents"]
+    except Exception as e:
+        return 0
+
+
 class OAIRepository(HarvestRepository):
     """ OAI Repository """
 
@@ -291,14 +306,27 @@ class OAIRepository(HarvestRepository):
 
             if len(record["contributor"]) == 0:
                 record.pop("contributor")
+            #File info base
+
+            endpoint_hostname = "https://" + record.get("https://www.frdr-dfdr.ca/schema/1.0/#globusHttpsHostname", [""])[0]
+            endpoint_path = record.get("https://www.frdr-dfdr.ca/schema/1.0/#globusEndpointPath", [""])[0]
+
+            # Get all File sizes
+            try:
+                sizes = get_frdr_files_size(endpoint_hostname + endpoint_path)
+                if not record["files_size"] == sizes:
+                    record["files_altered"] = 1
+                    record["files_size"] = sizes
+            except Exception as e:
+                self.logger.error(
+                    "Something wrong trying to access files length from hostname: {} , path: {}".format(
+                        endpoint_hostname,
+                        endpoint_path))
 
             # Get geospatial files
             if "geodisy_harvested" not in record or record["geodisy_harvested"] == 0:
-                endpoint_hostname = "https://" + record.get("https://www.frdr-dfdr.ca/schema/1.0/#globusHttpsHostname", [""])[0]
-                endpoint_path = record.get("https://www.frdr-dfdr.ca/schema/1.0/#globusEndpointPath", [""])[0]
                 try:
                     filenames = get_frdr_filenames(endpoint_hostname + endpoint_path)
-
                     # Get File Download URLs
                     for f in filenames:
                         file_segments = len(f.split("."))
@@ -515,6 +543,7 @@ class OAIRepository(HarvestRepository):
 
             metadata["identifier"] = single_record.header.identifier
             metadata["geodisy_harvested"] = single_record.get("geodisy_harvested", 0)
+            metadata["fizes_size"] = single_record.get("files_size", 0)
             oai_record = self.unpack_oai_metadata(metadata)
             self.domain_metadata = self.find_domain_metadata(metadata)
             if oai_record is None:
