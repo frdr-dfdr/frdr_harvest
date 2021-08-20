@@ -523,7 +523,7 @@ class DBInterface:
                         deleted, local_identifier, item_url, repository_id, upstream_modified_timestamp, files_size, files_altered)
                         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING record_id"""),
                         (rec["title"], rec["title_fr"], rec["pub_date"],  rec["series"], time.time(), source_url, 0,
-                         rec["identifier"], rec["item_url"], repo_id, time.time(), rec["files_siz"], rec["files_altered"]))
+                         rec["identifier"], rec["item_url"], repo_id, time.time(), rec["files_size"], rec["files_altered"]))
                     returnvalue = int(cur.fetchone()['record_id'])
                 if self.dbtype == "sqlite":
                     cur.execute(self._prep(
@@ -531,7 +531,7 @@ class DBInterface:
                         deleted, local_identifier, item_url, repository_id, upstream_modified_timestamp, files_size, files_altered)
                         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)"""),
                         (rec["title"], rec["title_fr"], rec["pub_date"], rec["series"], time.time(), source_url, 0,
-                         rec["identifier"], rec["item_url"], repo_id, time.time(), rec["files_siz"], rec["files_altered"]))
+                         rec["identifier"], rec["item_url"], repo_id, time.time(), rec["files_size"], rec["files_altered"]))
                     returnvalue = int(cur.lastrowid)
             except self.dblayer.IntegrityError as e:
                 self.logger.error("Record insertion problem: {}".format(e))
