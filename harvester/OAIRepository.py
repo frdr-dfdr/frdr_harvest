@@ -314,7 +314,7 @@ class OAIRepository(HarvestRepository):
             # Get all File sizes
             try:
                 sizes = get_frdr_files_size(endpoint_hostname + endpoint_path)
-                if not record["files_size"] == sizes:
+                if not record.get("files_size") == sizes:
                     record["files_altered"] = 1
                     record["files_size"] = sizes
             except Exception as e:
