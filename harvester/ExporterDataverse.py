@@ -73,7 +73,6 @@ class ExporterDataverse(Exporter.Exporter):
         stop = (start + rec_nums) if (start + rec_nums < last_rec_num) else last_rec_num
         rec_count = len(records)
         while current < rec_count and current < stop:
-            print(current)
             r = self._generate_dv_json(records[current])
             if r != "":
                 self.output_buffer.append(r)
