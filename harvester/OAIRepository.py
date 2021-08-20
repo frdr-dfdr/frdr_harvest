@@ -83,7 +83,7 @@ class FRDRItemIterator(BaseOAIIterator):
 def get_frdr_filenames(base_url):
     if base_url == "":
         return ""
-    full_url = base_url + "file_sizes.json?download=1:1"
+    full_url = base_url + "file_sizes_perm.json?download=0"
     session = requests.Session()
     session.headers.update({'referer': full_url})
     file = session.get(full_url)
@@ -102,14 +102,14 @@ def get_frdr_filenames(base_url):
 def get_frdr_files_size(base_url):
     if base_url == "":
         return 0
-    full_url = base_url + "file_sizes_perm.json?download=1:1"
+    full_url = base_url + "file_sizes_perm.json?download=0"
     session = requests.Session()
     session.headers.update({'referer': full_url})
     file = session.get(full_url)
     file_text = file.text
     try:
         data = json.loads(file_text)
-        return data["contents"]
+        return data["size"]
     except Exception as e:
         return 0
 
@@ -314,9 +314,10 @@ class OAIRepository(HarvestRepository):
             # Get all File sizes
             try:
                 sizes = get_frdr_files_size(endpoint_hostname + endpoint_path)
-                if not record["files_size"] == sizes:
+                if not record.get("files_size") == sizes:
                     record["files_altered"] = 1
                     record["files_size"] = sizes
+                    record["geodisy_harvested"] == 0
             except Exception as e:
                 self.logger.error(
                     "Something wrong trying to access files length from hostname: {} , path: {}".format(
