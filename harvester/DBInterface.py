@@ -580,8 +580,15 @@ class DBInterface:
                         modified_upstream = True
                     elif existing_record["local_identifier"] != record["identifier"]:
                         modified_upstream = True
-                    if existing_record.get("files_size") != record["files_size"]:
-                        record["files_altered"] = 1
+                    try:
+                        if existing_record["files_size"] != record["files_size"]:
+                            record["files_altered"] = 1
+                            modified_upstream = True
+                    except AttributeError:
+                        # probably not a valid OAI record
+                        # Islandora throws this for non-object directories
+                        self.logger.debug("AttributeError trying to access files_size")
+                        raise AssertionError
                 cur.execute(self._prep(
                     """UPDATE records set title=?, title_fr=?, pub_date=?, series=?, modified_timestamp=?, source_url=?,
                     deleted=?, local_identifier=?, item_url=?, files_size=?, files_altered=?
