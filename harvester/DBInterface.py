@@ -556,34 +556,89 @@ class DBInterface:
             new_val_recs_ids = []
             for value in record[val_fieldname]:
                 # special cases
-                if val_fieldname == "affiliation": # TODO test for Dryad
+                if val_fieldname == "geoplaces":
+                    if "country" not in value:
+                        value["country"] = ""
+                    if "province_state" not in value:
+                        value["province_state"] = ""
+                    if "city" not in value:
+                        value["city"] = ""
+                    if "other" not in value:
+                        value["other"] = ""
+                    if "place_name" not in value:
+                        value["place_name"] = ""
+                    extras = {"country": value["country"], "province_state": value["province_state"], "city": value["city"], "other": value["other"]}
+                    value = value["place_name"]
+                elif val_fieldname == "geopoints":
+                    if "lat" in value and "lon" in value:
+                        try:
+                            value["lat"] = float(value["lat"])
+                            value["lon"] = float(value["lon"])
+                            # Check coordinates are valid numbers
+                            if not (self.check_lat(value.get("lat")) and self.check_long(value.get("lon"))):
+                                continue
+                            extras = {"lat": value["lat"], "lon": value["lon"]}
+                        except Exception as e:
+                            self.logger.error("Unable to update geopoint for record id {}: {}".format(record['record_id'], e))
+                            continue
+                elif val_fieldname == "geobboxes":
+                    try:
+                        # Fill in any missing values
+                        if "eastLon" not in value and "westLon" in value:
+                            value["eastLon"] = value["westLon"]
+                        if "westLon" not in value and "eastLon" in value:
+                            value["westLon"] = value["eastLon"]
+                        if "northLat" not in value and "southLat" in value:
+                            value["northLat"] = value["southLat"]
+                        if "southLat" not in value and "northLat" in value:
+                            value["southLat"] = value["northLat"]
+                        # Check all coordinates are valid numbers
+                        if not (self.check_lat(value.get("northLat")) and self.check_lat(value.get("southLat")) and
+                                self.check_long(value.get("westLon")) and self.check_long(value.get("eastLon"))):
+                            continue
+                        if value["westLon"] != value["eastLon"] or value["northLat"] != value["southLat"]:
+                            # If west/east or north/south don't match, this is a box
+                            extras = {"westLon": value["westLon"], "eastLon": value["eastLon"],
+                                      "northLat": value["northLat"], "southLat": value["southLat"]}
+                        else: # TODO verify this appends to the original record dictionary?
+                            if "geopoints" not in record:
+                                record["geopoints"] = []
+                            record["geopoints"].append({"lat": value["northLat"], "lon": value["westLon"]})
+                            continue
+                    except Exception as e:
+                        self.logger.error("Unable to update geobbox for record id {}: {}".format(record['record_id'], e))
+                        continue
+                elif val_fieldname == "geofiles":
+                    if "filename" in value and "uri" in value:
+                        extras = {"filename": value["filename"], "uri": value["uri"]}
+                elif val_fieldname == "affiliation": # TODO test for Dryad
                     if isinstance(value, dict) and "affilation_ror" in value:
                         extras = {"affiliation_ror": value["affiliation_ror"]}
                     else:
                         extras = {"affiliation_ror": ""}
                     if isinstance(value, dict) and "affiliation_name" in value:
                         value = value["affiliation_name"]
-                if val_fieldname in ["rights", "description", "description_fr"]:
+                elif val_fieldname in ["rights", "description", "description_fr"]:
                     sha1 = hashlib.sha1()
                     sha1.update(value.encode('utf-8'))
                     original_value = value
                     value = sha1.hexdigest()
-                if val_fieldname == "rights":
-                    extras = {"rights": original_value}
-                if val_fieldname == "description":
-                    extras =  {"record_id": record["record_id"], "language": "en"}
-                if val_fieldname == "description_fr":
-                    extras = {"record_id": record["record_id"], "language": "fr"}
+                    if val_fieldname == "rights":
+                        extras = {"rights": original_value}
+                    elif val_fieldname == "description":
+                        extras =  {"record_id": record["record_id"], "language": "en"}
+                    elif val_fieldname == "description_fr":
+                        extras = {"record_id": record["record_id"], "language": "fr"}
 
                 # get existing value record if it exists
-                if val_fieldname in ["creator", "contributor", "publisher", "rights"]:
-                    val_rec_id = self.get_single_record_id(valtable, value)
-                elif val_fieldname in ["affiliation", "description", "description_fr"]:
+                if val_fieldname in ["affiliation", "description", "description_fr", "geoplaces"]:
                     val_rec_id = self.get_single_record_id(valtable, value, **extras)
                 elif val_fieldname in ["tags", "tags_fr", "subject", "subject_fr"]:
                     val_rec_id = self.get_single_record_id(valtable, value, extrawhere)
-                else: # FIXME is this code reachable or valid?
-                    val_rec_id = self.get_single_record_id(valtable, value, extrawhere, **extras)
+                elif val_fieldname in ["geopoints", "geobboxes", "geofiles"]:
+                    val_rec_id = self.get_single_record_id(valtable, record["record_id"], **extras)
+                else: # ["creator", "contributor", "publisher", "rights"]
+                    val_rec_id = self.get_single_record_id(valtable, value)
 
                 # write valtable record and crosstable records if needed
                 if val_rec_id is None:
@@ -592,9 +647,12 @@ class DBInterface:
 
                     if val_fieldname in ["creator", "contributor", "publisher"]:
                         val_rec_id = self.insert_related_record(valtable, value)
-                    else: # ["affiliation", "rights", "tags", "tags_fr", "subject", "subject_fr", "description", "description_fr"]:
+                    elif val_fieldname in ["geopoints", "geobboxes", "geofiles"]:
+                        val_rec_id = self.insert_related_record(valtable, record["record_id"], **extras)
+                    else: # ["affiliation", "rights", "tags", "tags_fr", "subject", "subject_fr", "description", "description_fr", "geoplaces"]:
                         val_rec_id = self.insert_related_record(valtable, value, **extras)
-                    modified_upstream = True
+                    if val_fieldname != "geopoints": # Remove when Geodisy starts processing points
+                        modified_upstream = True
                 if val_rec_id is not None:
                     new_val_recs_ids.append(val_rec_id)
                     if crosstable != valtable:
@@ -612,7 +670,7 @@ class DBInterface:
                         self.delete_one_related_record(crosstable, eid, record["record_id"], extrawhere)
                     else:
                         self.delete_row_generic(valtable, val_idcol, eid)
-        elif existing_val_recs:
+        elif existing_val_recs: # delete metadata if the field is no longer present in incoming record
             modified_upstream = True
             if crosstable != valtable:
                 if val_fieldname in ["subject", "subjects_fr", "tags", "tags_fr"]:
@@ -719,6 +777,10 @@ class DBInterface:
             if self.update_metadata(record, "records_x_subjects", "subjects", "subject_fr", "subject_id", "and language='fr'", {"language": "fr"}):
                 modified_upstream = True
 
+            # geoplaces
+            if self.update_metadata(record, "records_x_geoplace", "geoplace", "geoplaces", "geoplace_id"):
+                modified_upstream = True
+
             # descriptions - en
             if self.update_metadata(record, "descriptions", "descriptions", "description", "description_id", "and language='en'"):
                 modified_upstream = True
@@ -727,122 +789,19 @@ class DBInterface:
             if self.update_metadata(record, "descriptions", "descriptions", "description_fr", "description_id", "and language='fr'"):
                 modified_upstream = True
 
-            if "geobboxes" in record:
-                existing_geobbox_recs = self.get_multiple_records("geobbox", "*", "record_id",
-                                                                    record["record_id"])
-                existing_geobbox_ids = [e["geobbox_id"] for e in existing_geobbox_recs]
-                new_geobbox_ids = []
-                for geobbox in record["geobboxes"]:
-                    # Fill in any missing values
-                    if "eastLon" not in geobbox and "westLon" in geobbox:
-                        geobbox["eastLon"] = geobbox["westLon"]
-                    if "westLon" not in geobbox and "eastLon" in geobbox:
-                        geobbox["westLon"] = geobbox["eastLon"]
-                    if "northLat" not in geobbox and "southLat" in geobbox:
-                        geobbox["northLat"] = geobbox["southLat"]
-                    if "southLat" not in geobbox and "northLat" in geobbox:
-                            geobbox["southLat"] = geobbox["northLat"]
+            # geobboxes
+            if self.update_metadata(record, "geobbox", "geobbox", "geobboxes", "geobbox_id"):
+                modified_upstream = True
 
-                    if "westLon" in geobbox and "eastLon" in geobbox and "northLat" in geobbox and "southLat" in geobbox:
-                        try:
-                            geobbox["westLon"] = float(geobbox["westLon"])
-                            geobbox["eastLon"] = float(geobbox["eastLon"])
-                            geobbox["northLat"] = float(geobbox["northLat"])
-                            geobbox["southLat"] = float(geobbox["southLat"])
-                            # Check all coordinates are valid numbers
-                            if not (self.check_lat(geobbox.get("northLat")) and self.check_lat(geobbox.get("southLat")) and self.check_long(geobbox.get("westLon")) and self.check_long(geobbox.get("eastLon"))):
-                                continue
-                            if geobbox["westLon"] != geobbox["eastLon"] or geobbox["northLat"] != geobbox["southLat"]:
-                                # If west/east or north/south don't match, this is a box
-                                extras = {"westLon": geobbox["westLon"], "eastLon": geobbox["eastLon"],
-                                          "northLat": geobbox["northLat"], "southLat": geobbox["southLat"]}
-                                geobbox_id = self.get_single_record_id("geobbox", record["record_id"], **extras)
-                                if geobbox_id is None:
-                                    geobbox_id = self.insert_related_record("geobbox", record["record_id"], **extras)
-                                    modified_upstream = True
-                                if geobbox_id is not None:
-                                    new_geobbox_ids.append(geobbox_id)
-                            else:
-                                # If west/east and north/south match, this is a point
-                                if "geopoints" not in record:
-                                    record["geopoints"] = []
-                                record["geopoints"].append({"lat": geobbox["northLat"], "lon": geobbox["westLon"]})
-                        except Exception as e:
-                            self.logger.error("Unable to update geobbox for record id {}: {}".format(record['record_id'], e))
+            # geopoints
+            if self.update_metadata(record, "geopoint", "geopoint", "geopoints", "geopoint_id"):
+                modified_upstream = True
 
-                # Remove any existing boxes that aren't also in the new boxes
-                for eid in existing_geobbox_ids:
-                    if eid not in new_geobbox_ids:
-                        self.delete_row_generic("geobbox", "geobbox_id", eid)
-                        modified_upstream = True
+            # geofiles
+            if self.update_metadata(record, "geofile", "geofile", "geofiles", "geofile_id"):
+                modified_upstream = True
 
-            if "geopoints" in record:
-                existing_geopoint_recs = self.get_multiple_records("geopoint", "*", "record_id",
-                                                                    record["record_id"])
-                existing_geopoint_ids = [e["geopoint_id"] for e in existing_geopoint_recs]
-                new_geopoint_ids = []
-                for geopoint in record["geopoints"]:
-                    if "lat" in geopoint and "lon" in geopoint:
-                        try:
-                            geopoint["lat"] = float(geopoint["lat"])
-                            geopoint["lon"] = float(geopoint["lon"])
-                            # Check coordinates are valid numbers
-                            if not (self.check_lat(geopoint.get("lat")) and self.check_long(geopoint.get("lon"))):
-                                continue
-                            extras = {"lat": geopoint["lat"], "lon": geopoint["lon"]}
-                            geopoint_id = self.get_single_record_id("geopoint", record["record_id"], **extras)
-                            if geopoint_id is None:
-                                self.insert_related_record("geopoint", record["record_id"], **extras)
-                                #modified_upstream = True # Uncomment when Geodisy starts processing points
-                            if geopoint_id is not None:
-                                new_geopoint_ids.append(geopoint_id)
-                        except Exception as e:
-                            self.logger.error("Unable to update geopoint for record id {}: {}".format(record['record_id'], e))
-
-                # Remove any existing points that aren't also in the new points
-                for eid in existing_geopoint_ids:
-                    if eid not in new_geopoint_ids:
-                        self.delete_row_generic("geopoint", "geopoint_id", eid)
-                        modified_upstream = True
-
-            if "geoplaces" in record:
-                existing_geoplace_recs = self.get_multiple_records("records_x_geoplace", "*", "record_id",
-                                                              record["record_id"])
-                existing_geoplace_ids = [e["geoplace_id"] for e in existing_geoplace_recs]
-                new_geoplace_ids = []
-                for geoplace in record["geoplaces"]:
-                    if "country" not in geoplace:
-                        geoplace["country"] = ""
-                    if "province_state" not in geoplace:
-                        geoplace["province_state"] = ""
-                    if "city" not in geoplace:
-                        geoplace["city"] = ""
-                    if "other" not in geoplace:
-                        geoplace["other"] = ""
-                    if "place_name" not in geoplace:
-                        geoplace["place_name"] = ""
-                    extras = {"country": geoplace["country"], "province_state": geoplace["province_state"]
-                              , "city": geoplace["city"], "other": geoplace["other"]}
-                    geoplace_id = self.get_single_record_id("geoplace", geoplace["place_name"], **extras)
-
-                    if geoplace_id is None:
-                        geoplace_id = self.insert_related_record("geoplace", geoplace["place_name"], **extras)
-                        modified_upstream = True
-                    if geoplace_id is not None:
-                        new_geoplace_ids.append(geoplace_id)
-                        if geoplace_id not in existing_geoplace_ids:
-                            self.insert_cross_record("records_x_geoplace", "geoplace", geoplace_id, record["record_id"])
-                            modified_upstream = True
-
-                for eid in existing_geoplace_ids:
-                    if eid not in new_geoplace_ids:
-                        records_x_geoplace_id = \
-                            self.get_multiple_records("records_x_geoplace", "records_x_geoplace_id", "record_id",
-                                                      record["record_id"], " and geoplace_id='"
-                                                      + str(eid) + "'")[0]["records_x_geoplace_id"]
-                        self.delete_row_generic("records_x_geoplace", "records_x_geoplace_id", records_x_geoplace_id)
-                        modified_upstream = True
-
+            # crdc
             if "crdc" in record:
                 existing_crdc_recs = self.get_multiple_records("records_x_crdc", "*", "record_id",
                                                                    record["record_id"])
@@ -852,7 +811,7 @@ class DBInterface:
                 for crdc in record["crdc"]:
                     for key in crdc_key_list:
                         if key not in crdc:
-                            continue
+                            continue # FIXME not sure this breaks loop to the correct level
                     crdc_id = self.get_single_record_id("crdc", crdc["crdc_code"])
                     extras = crdc.copy()
                     extras.pop("crdc_code")
@@ -882,26 +841,7 @@ class DBInterface:
                         self.delete_row_generic("records_x_crdc", "records_x_crdc_id", records_x_crdc_id)
                         modified_upstream = True
 
-            if "geofiles" in record:
-                existing_geofile_recs = self.get_multiple_records("geofile", "*", "record_id",
-                                                               record["record_id"])
-                existing_geofile_ids = [e["geofile_id"] for e in existing_geofile_recs]
-                new_geofile_ids = []
-                for geofile in record["geofiles"]:
-                    if "filename" in geofile and "uri" in geofile:
-                        extras = {"filename": geofile["filename"], "uri": geofile["uri"]}
-                        geofile_id = self.get_single_record_id("geofile", record["record_id"], **extras)
-                        if geofile_id is None:
-                            geofile_id = self.insert_related_record("geofile", record["record_id"], **extras)
-                            modified_upstream = True
-                        if geofile_id is not None:
-                            new_geofile_ids.append(geofile_id)
-                # Remove any existing files that aren't also in the new files
-                for eid in existing_geofile_ids:
-                    if eid not in new_geofile_ids:
-                        self.delete_row_generic("geofile", "geofile_id", eid)
-                        modified_upstream = True
-
+            # domain metadata
             if len(domain_metadata) > 0:
                 existing_metadata_recs = self.get_multiple_records("domain_metadata", "*", "record_id",
                                                                   record["record_id"])
@@ -996,11 +936,15 @@ class DBInterface:
         return None
 
     def check_lat(self,lat):
+        if isinstance(lat, str):
+            lat = float(lat)
         if lat > 90 or lat < -90:
             return False
         return True
 
     def check_long(self,long):
+        if isinstance(long, str):
+            long = float(long)
         if long > 180 or long < -180:
             return False
         return True
