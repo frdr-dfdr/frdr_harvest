@@ -550,36 +550,37 @@ class DBInterface:
             record["item_url"] = self.construct_local_url(record)
 
         con = self.getConnection()
-        with con:
-            cur = self.getRowCursor()
-            source_url = ""
-            if 'dc:source' in record:
-                if isinstance(record["dc:source"], list):
-                    source_url = record["dc:source"][0]
-                else:
-                    source_url = record["dc:source"]
-            if record["record_id"] is None:
-                modified_upstream = True # New record has new metadata
-                record["record_id"] = self.create_new_record(record, source_url, repo_id)
+
+        source_url = ""
+        if 'dc:source' in record:
+            if isinstance(record["dc:source"], list):
+                source_url = record["dc:source"][0]
             else:
-                # Compare title, title_fr, pub_date, series, source_url, item_url, local_identifier for changes
-                records = self.get_multiple_records("records", "*", "record_id", record["record_id"])
-                if len(records) == 1:
-                    existing_record = records[0]
-                    if existing_record["title"] != record["title"]:
-                        modified_upstream = True
-                    elif existing_record["title_fr"] != record["title_fr"]:
-                        modified_upstream = True
-                    elif existing_record["pub_date"] != record["pub_date"]:
-                        modified_upstream = True
-                    elif existing_record["series"] != record["series"]:
-                        modified_upstream = True
-                    elif existing_record["source_url"] is None and existing_record["source_url"] != source_url:
-                        modified_upstream = True
-                    elif existing_record["item_url"] != record["item_url"]:
-                        modified_upstream = True
-                    elif existing_record["local_identifier"] != record["identifier"]:
-                        modified_upstream = True
+                source_url = record["dc:source"]
+        if record["record_id"] is None:
+            modified_upstream = True # New record has new metadata
+            record["record_id"] = self.create_new_record(record, source_url, repo_id)
+        else:
+            # Compare title, title_fr, pub_date, series, source_url, item_url, local_identifier for changes
+            records = self.get_multiple_records("records", "*", "record_id", record["record_id"])
+            if len(records) == 1:
+                existing_record = records[0]
+                if existing_record["title"] != record["title"]:
+                    modified_upstream = True
+                elif existing_record["title_fr"] != record["title_fr"]:
+                    modified_upstream = True
+                elif existing_record["pub_date"] != record["pub_date"]:
+                    modified_upstream = True
+                elif existing_record["series"] != record["series"]:
+                    modified_upstream = True
+                elif existing_record["source_url"] is None and existing_record["source_url"] != source_url:
+                    modified_upstream = True
+                elif existing_record["item_url"] != record["item_url"]:
+                    modified_upstream = True
+                elif existing_record["local_identifier"] != record["identifier"]:
+                    modified_upstream = True
+            with con:
+                cur = self.getRowCursor()
                 cur.execute(self._prep(
                     """UPDATE records set title=?, title_fr=?, pub_date=?, series=?, modified_timestamp=?, source_url=?,
                     deleted=?, local_identifier=?, item_url=?
