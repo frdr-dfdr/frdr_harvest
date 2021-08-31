@@ -288,17 +288,11 @@ class DBInterface:
                 self.logger.error("Unable to mark as deleted record {}".format(record['local_identifier']))
                 return False
 
-            try: # FIXME delete descriptions and other geo metadata
-                self.delete_all_related_records("records_x_access", record['record_id'])
-                self.delete_all_related_records("records_x_creators", record['record_id'])
-                self.delete_all_related_records("records_x_publishers", record['record_id'])
-                self.delete_all_related_records("records_x_rights", record['record_id'])
-                self.delete_all_related_records("records_x_subjects", record['record_id'])
-                self.delete_all_related_records("records_x_affiliations", record['record_id'])
-                self.delete_all_related_records("records_x_tags", record['record_id'])
-                self.delete_all_related_records("descriptions", record['record_id'])
-                self.delete_all_related_records("geospatial", record['record_id'])
-                self.delete_all_related_records("domain_metadata", record['record_id'])
+            try: # TODO test
+                for tablename in ["records_x_access", "records_x_creators", "records_x_publishers", "records_x_rights",
+                                  "records_x_subjects", "records_x_affiliations", "records_x_tags", "descriptions",
+                                  "records_x_geoplace", "records_x_crdc", "geopoint", "geobbox", "domain_metadata"]:
+                    self.delete_all_related_records(tablename, record['record_id'])
             except Exception as e:
                 self.logger.error(
                     "Unable to delete related table rows for record {}".format(record['local_identifier']))
@@ -412,7 +406,6 @@ class DBInterface:
                 self.logger.error("Record insertion problem: {}".format(e))
 
         return cross_table_id
-
 
     def get_multiple_records(self, tablename, columnlist, given_col, given_val, extrawhere="", **kwargs):
         records = []
@@ -536,7 +529,7 @@ class DBInterface:
 
         return returnvalue
 
-    def update_metadata(self, record, crosstable, valtable, val_fieldname, val_idcol, extrawhere="", extras={}):
+    def update_related_metadata(self, record, crosstable, valtable, val_fieldname, val_idcol, extrawhere="", extras={}):
         modified_upstream = False
         if val_fieldname in ["tags", "subject"]:
             existing_val_recs = self.get_records_raw_query("""select v.{} from {} v
@@ -611,7 +604,7 @@ class DBInterface:
                 elif val_fieldname == "geofiles":
                     if "filename" in value and "uri" in value:
                         extras = {"filename": value["filename"], "uri": value["uri"]}
-                elif val_fieldname == "affiliation": # TODO test for Dryad
+                elif val_fieldname == "affiliation":
                     if isinstance(value, dict) and "affiliation_ror" in list(value.keys()):
                         extras = {"affiliation_ror": value["affiliation_ror"]}
                     else:
@@ -713,20 +706,15 @@ class DBInterface:
                 records = self.get_multiple_records("records", "*", "record_id", record["record_id"])
                 if len(records) == 1:
                     existing_record = records[0]
-                    if existing_record["title"] != record["title"]:
-                        modified_upstream = True
-                    elif existing_record["title_fr"] != record["title_fr"]:
-                        modified_upstream = True
-                    elif existing_record["pub_date"] != record["pub_date"]:
-                        modified_upstream = True
-                    elif existing_record["series"] != record["series"]:
+                    for record_field in ["title", "title_fr", "pub_date", "series", "item_url"]:
+                        if existing_record[record_field] != record[record_field]:
+                            modified_upstream = True
+                            break
+                    if existing_record["local_identifier"] != record["identifier"]:
                         modified_upstream = True
                     elif existing_record["source_url"] is None and existing_record["source_url"] != source_url:
                         modified_upstream = True
-                    elif existing_record["item_url"] != record["item_url"]:
-                        modified_upstream = True
-                    elif existing_record["local_identifier"] != record["identifier"]:
-                        modified_upstream = True
+
                 cur.execute(self._prep(
                     """UPDATE records set title=?, title_fr=?, pub_date=?, series=?, modified_timestamp=?, source_url=?,
                     deleted=?, local_identifier=?, item_url=?
@@ -738,67 +726,67 @@ class DBInterface:
                 return None
 
             # creators
-            if self.update_metadata(record, "records_x_creators", "creators", "creator",  "creator_id", "and is_contributor=0", {"is_contributor": 0}):
+            if self.update_related_metadata(record, "records_x_creators", "creators", "creator", "creator_id", "and is_contributor=0", {"is_contributor": 0}):
                 modified_upstream = True
 
             # contributors
-            if self.update_metadata(record, "records_x_creators", "creators", "contributor", "creator_id", "and is_contributor=1", {"is_contributor": 1}):
+            if self.update_related_metadata(record, "records_x_creators", "creators", "contributor", "creator_id", "and is_contributor=1", {"is_contributor": 1}):
                 modified_upstream = True
 
             # publishers
-            if self.update_metadata(record, "records_x_publishers", "publishers", "publisher", "publisher_id"):
+            if self.update_related_metadata(record, "records_x_publishers", "publishers", "publisher", "publisher_id"):
                 modified_upstream = True
 
             # affiliations
-            if self.update_metadata(record, "records_x_affiliations", "affiliations", "affiliation", "affiliation_id"):
+            if self.update_related_metadata(record, "records_x_affiliations", "affiliations", "affiliation", "affiliation_id"):
                 modified_upstream = True
 
             # access
-            if self.update_metadata(record, "records_x_access", "access", "access", "access_id"):
+            if self.update_related_metadata(record, "records_x_access", "access", "access", "access_id"):
                 modified_upstream = True
 
             # rights
-            if self.update_metadata(record, "records_x_rights", "rights", "rights", "rights_id"):
+            if self.update_related_metadata(record, "records_x_rights", "rights", "rights", "rights_id"):
                 modified_upstream = True
 
             # tags - en
-            if self.update_metadata(record, "records_x_tags", "tags", "tags", "tag_id", "and language='en'", {"language": "en"}):
+            if self.update_related_metadata(record, "records_x_tags", "tags", "tags", "tag_id", "and language='en'", {"language": "en"}):
                 modified_upstream = True
 
             # tags - fr
-            if self.update_metadata(record, "records_x_tags", "tags", "tags_fr", "tag_id", "and language='fr'", {"language": "fr"}):
+            if self.update_related_metadata(record, "records_x_tags", "tags", "tags_fr", "tag_id", "and language='fr'", {"language": "fr"}):
                 modified_upstream = True
 
             # subjects - en
-            if self.update_metadata(record, "records_x_subjects", "subjects", "subject", "subject_id", "and language='en'", {"language": "en"}):
+            if self.update_related_metadata(record, "records_x_subjects", "subjects", "subject", "subject_id", "and language='en'", {"language": "en"}):
                 modified_upstream = True
 
             # subjects - fr
-            if self.update_metadata(record, "records_x_subjects", "subjects", "subject_fr", "subject_id", "and language='fr'", {"language": "fr"}):
+            if self.update_related_metadata(record, "records_x_subjects", "subjects", "subject_fr", "subject_id", "and language='fr'", {"language": "fr"}):
                 modified_upstream = True
 
             # geoplaces
-            if self.update_metadata(record, "records_x_geoplace", "geoplace", "geoplaces", "geoplace_id"):
+            if self.update_related_metadata(record, "records_x_geoplace", "geoplace", "geoplaces", "geoplace_id"):
                 modified_upstream = True
 
             # descriptions - en
-            if self.update_metadata(record, "descriptions", "descriptions", "description", "description_id", "and language='en'"):
+            if self.update_related_metadata(record, "descriptions", "descriptions", "description", "description_id", "and language='en'"):
                 modified_upstream = True
 
             # descriptions - fr
-            if self.update_metadata(record, "descriptions", "descriptions", "description_fr", "description_id", "and language='fr'"):
+            if self.update_related_metadata(record, "descriptions", "descriptions", "description_fr", "description_id", "and language='fr'"):
                 modified_upstream = True
 
             # geobboxes
-            if self.update_metadata(record, "geobbox", "geobbox", "geobboxes", "geobbox_id"):
+            if self.update_related_metadata(record, "geobbox", "geobbox", "geobboxes", "geobbox_id"):
                 modified_upstream = True
 
             # geopoints
-            if self.update_metadata(record, "geopoint", "geopoint", "geopoints", "geopoint_id"):
+            if self.update_related_metadata(record, "geopoint", "geopoint", "geopoints", "geopoint_id"):
                 modified_upstream = True
 
             # geofiles
-            if self.update_metadata(record, "geofile", "geofile", "geofiles", "geofile_id"):
+            if self.update_related_metadata(record, "geofile", "geofile", "geofiles", "geofile_id"):
                 modified_upstream = True
 
             # crdc
