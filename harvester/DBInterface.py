@@ -555,6 +555,7 @@ class DBInterface:
                 record[val_fieldname] = [record[val_fieldname]]
             new_val_recs_ids = []
             for value in record[val_fieldname]:
+                # special cases
                 if val_fieldname == "affiliation": # TODO test for Dryad
                     if isinstance(value, dict) and "affilation_ror" in value:
                         extras = {"affiliation_ror": value["affiliation_ror"]}
@@ -562,45 +563,66 @@ class DBInterface:
                         extras = {"affiliation_ror": ""}
                     if isinstance(value, dict) and "affiliation_name" in value:
                         value = value["affiliation_name"]
-                if val_fieldname == "rights":
+                if val_fieldname in ["rights", "description", "description_fr"]:
                     sha1 = hashlib.sha1()
                     sha1.update(value.encode('utf-8'))
+                    original_value = value
                     value = sha1.hexdigest()
-                    extras = {"rights": value}
+                if val_fieldname == "rights":
+                    extras = {"rights": original_value}
+                if val_fieldname == "description":
+                    extras =  {"record_id": record["record_id"], "language": "en"}
+                if val_fieldname == "description_fr":
+                    extras = {"record_id": record["record_id"], "language": "fr"}
+
+                # get existing value record if it exists
                 if val_fieldname in ["creator", "contributor", "publisher", "rights"]:
                     val_rec_id = self.get_single_record_id(valtable, value)
-                elif val_fieldname in ["affiliation"]:
+                elif val_fieldname in ["affiliation", "description", "description_fr"]:
                     val_rec_id = self.get_single_record_id(valtable, value, **extras)
                 elif val_fieldname in ["tags", "tags_fr", "subject", "subject_fr"]:
                     val_rec_id = self.get_single_record_id(valtable, value, extrawhere)
                 else: # FIXME is this code reachable or valid?
                     val_rec_id = self.get_single_record_id(valtable, value, extrawhere, **extras)
+
+                # write valtable record and crosstable records if needed
                 if val_rec_id is None:
+                    if val_fieldname in ["description", "description_fr"]:
+                        extras["description"] = original_value
+
                     if val_fieldname in ["creator", "contributor", "publisher"]:
                         val_rec_id = self.insert_related_record(valtable, value)
-                    else: # ["affiliation", "rights", "tags", "tags_fr", "subject", "subject_fr"]:
+                    else: # ["affiliation", "rights", "tags", "tags_fr", "subject", "subject_fr", "description", "description_fr"]:
                         val_rec_id = self.insert_related_record(valtable, value, **extras)
                     modified_upstream = True
                 if val_rec_id is not None:
                     new_val_recs_ids.append(val_rec_id)
-                    if val_rec_id not in existing_val_recs_ids:
-                        if val_fieldname in ["creator", "contributor"]:
-                            self.insert_cross_record(crosstable, valtable, val_rec_id, record["record_id"],
-                                                     **extras)
-                        else:
-                            self.insert_cross_record(crosstable, valtable, val_rec_id, record["record_id"])
+                    if crosstable != valtable:
+                        if val_rec_id not in existing_val_recs_ids:
+                            if val_fieldname in ["creator", "contributor"]:
+                                self.insert_cross_record(crosstable, valtable, val_rec_id, record["record_id"],
+                                                         **extras)
+                            else:
+                                self.insert_cross_record(crosstable, valtable, val_rec_id, record["record_id"])
                         modified_upstream = True
             for eid in existing_val_recs_ids:
                 if eid not in new_val_recs_ids:
                     modified_upstream = True
-                    self.delete_one_related_record(crosstable, eid, record["record_id"], extrawhere)
+                    if crosstable != valtable:
+                        self.delete_one_related_record(crosstable, eid, record["record_id"], extrawhere)
+                    else:
+                        self.delete_row_generic(valtable, val_idcol, eid)
         elif existing_val_recs:
-            if val_fieldname in ["subject", "subjects_fr", "tags", "tags_fr"]:
-                for eid in existing_val_recs_ids:
-                    self.delete_one_related_record(crosstable, eid, record["record_id"])
+            modified_upstream = True
+            if crosstable != valtable:
+                if val_fieldname in ["subject", "subjects_fr", "tags", "tags_fr"]:
+                    for eid in existing_val_recs_ids:
+                        self.delete_one_related_record(crosstable, eid, record["record_id"])
+                else: # TODO test for "description", "description_fr"
+                    self.delete_all_related_records(crosstable, record["record_id"], extrawhere)
             else:
-                self.delete_all_related_records(crosstable, record["record_id"], extrawhere)
-                modified_upstream = True
+                for eid in existing_val_recs_ids:
+                    self.delete_row_generic(valtable, val_idcol, eid)
         return modified_upstream
 
     def write_record(self, record, repo):
@@ -697,67 +719,13 @@ class DBInterface:
             if self.update_metadata(record, "records_x_subjects", "subjects", "subject_fr", "subject_id", "and language='fr'", {"language": "fr"}):
                 modified_upstream = True
 
-            # Descriptions - English
-            existing_description_recs_en = self.get_multiple_records("descriptions", "description_id", "record_id",
-                                                                     record["record_id"], "and language='en'")
-            existing_description_ids = [e["description_id"] for e in existing_description_recs_en]
-            if "description" in record:
-                if not isinstance(record["description"], list):
-                    record["description"] = [record["description"]]
-                new_description_ids = []
-                for description in record["description"]:
-                    # Use a hash for lookups so we don't need to maintain a full text index
-                    if description is not None:
-                        sha1 = hashlib.sha1()
-                        sha1.update(description.encode('utf-8'))
-                        description_hash = sha1.hexdigest()
-                        description_id = self.get_single_record_id("descriptions", description_hash, "and record_id=" +
-                                                                   str(record["record_id"]) + " and language='en'")
-                        if description_id is None:
-                            extras = {"record_id": record["record_id"], "language": "en", "description": description}
-                            description_id = self.insert_related_record("descriptions", description_hash, **extras)
-                            modified_upstream = True
-                        if description_id is not None:
-                            new_description_ids.append(description_id)
-                for eid in existing_description_ids:
-                    if eid not in new_description_ids:
-                        self.delete_row_generic("descriptions", "description_id", eid)
-                        modified_upstream = True
-            elif existing_description_recs_en:
+            # descriptions - en
+            if self.update_metadata(record, "descriptions", "descriptions", "description", "description_id", "and language='en'"):
                 modified_upstream = True
-                for eid in existing_description_ids:
-                    self.delete_row_generic("descriptions", "description_id", eid)
 
-            # Descriptions - French
-            existing_description_recs_fr = self.get_multiple_records("descriptions", "description_id", "record_id",
-                                                                     record["record_id"], "and language='fr'")
-            existing_description_ids = [e["description_id"] for e in existing_description_recs_fr]
-            if "description_fr" in record:
-                if not isinstance(record["description_fr"], list):
-                    record["description_fr"] = [record["description_fr"]]
-                new_description_ids = []
-                for description in record["description_fr"]:
-                    # Use a hash for lookups so we don't need to maintain a full text index
-                    if description is not None:
-                        sha1 = hashlib.sha1()
-                        sha1.update(description.encode('utf-8'))
-                        description_hash = sha1.hexdigest()
-                        description_id = self.get_single_record_id("descriptions", description_hash, "and record_id=" +
-                                                                   str(record["record_id"]) + " and language='fr'")
-                        if description_id is None:
-                            extras = {"record_id": record["record_id"], "language": "fr", "description": description}
-                            description_id = self.insert_related_record("descriptions", description_hash, **extras)
-                            modified_upstream = True
-                        if description_id is not None:
-                            new_description_ids.append(description_id)
-                for eid in existing_description_ids:
-                    if eid not in new_description_ids:
-                        self.delete_row_generic("descriptions", "description_id", eid)
-                        modified_upstream = True
-            elif existing_description_recs_fr:
+            # descriptions - fr
+            if self.update_metadata(record, "descriptions", "descriptions", "description_fr", "description_id", "and language='fr'"):
                 modified_upstream = True
-                for eid in existing_description_ids:
-                    self.delete_row_generic("descriptions", "description_id", eid)
 
             if "geobboxes" in record:
                 existing_geobbox_recs = self.get_multiple_records("geobbox", "*", "record_id",
