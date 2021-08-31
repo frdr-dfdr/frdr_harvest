@@ -600,7 +600,7 @@ class DBInterface:
                             # If west/east or north/south don't match, this is a box
                             extras = {"westLon": value["westLon"], "eastLon": value["eastLon"],
                                       "northLat": value["northLat"], "southLat": value["southLat"]}
-                        else: # TODO verify this appends to the original record dictionary?
+                        else:
                             if "geopoints" not in record:
                                 record["geopoints"] = []
                             record["geopoints"].append({"lat": value["northLat"], "lon": value["westLon"]})
@@ -612,11 +612,11 @@ class DBInterface:
                     if "filename" in value and "uri" in value:
                         extras = {"filename": value["filename"], "uri": value["uri"]}
                 elif val_fieldname == "affiliation": # TODO test for Dryad
-                    if isinstance(value, dict) and "affilation_ror" in value:
+                    if isinstance(value, dict) and "affiliation_ror" in list(value.keys()):
                         extras = {"affiliation_ror": value["affiliation_ror"]}
                     else:
                         extras = {"affiliation_ror": ""}
-                    if isinstance(value, dict) and "affiliation_name" in value:
+                    if isinstance(value, dict) and "affiliation_name" in list(value.keys()):
                         value = value["affiliation_name"]
                 elif val_fieldname in ["rights", "description", "description_fr"]:
                     sha1 = hashlib.sha1()
