@@ -797,29 +797,31 @@ class DBInterface:
                 new_crdc_ids = []
                 crdc_key_list = ["crdc_code", "crdc_group_en", "crdc_group_fr", "crdc_class_en", "crdc_class_fr", "crdc_field_en", "crdc_field_fr"]
                 for crdc in record["crdc"]:
+                    all_crdc_keys_found = True
                     for key in crdc_key_list:
                         if key not in crdc:
-                            continue # FIXME not sure this breaks loop to the correct level
-                    crdc_id = self.get_single_record_id("crdc", crdc["crdc_code"])
-                    extras = crdc.copy()
-                    extras.pop("crdc_code")
-                    if crdc_id is not None:
-                        # check if the existing CRDC entry matches - if not, update
-                        crdc_record = self.get_multiple_records("crdc", "*", "crdc_id", crdc_id)[0]
-                        for key in crdc_key_list:
-                            if crdc[key] != crdc_record[key]:
-                                self.update_row_generic("crdc", crdc_id, extras)
-                                modified_upstream = True
-                                break
-                    if crdc_id is None:
-                        crdc_id = self.insert_related_record("crdc", crdc["crdc_code"], **extras)
-                        modified_upstream = True
-                    if crdc_id is not None:
-                        new_crdc_ids.append(crdc_id)
-                        if crdc_id not in existing_crdc_ids:
-                            self.insert_cross_record("records_x_crdc", "crdc", crdc_id, record["record_id"])
+                            all_crdc_keys_found = False
+                            break
+                    if all_crdc_keys_found:
+                        crdc_id = self.get_single_record_id("crdc", crdc["crdc_code"])
+                        extras = crdc.copy()
+                        extras.pop("crdc_code")
+                        if crdc_id is not None:
+                            # check if the existing CRDC entry matches - if not, update
+                            crdc_record = self.get_multiple_records("crdc", "*", "crdc_id", crdc_id)[0]
+                            for key in crdc_key_list:
+                                if crdc[key] != crdc_record[key]:
+                                    self.update_row_generic("crdc", crdc_id, extras)
+                                    modified_upstream = True
+                                    break
+                        if crdc_id is None:
+                            crdc_id = self.insert_related_record("crdc", crdc["crdc_code"], **extras)
                             modified_upstream = True
-
+                        if crdc_id is not None:
+                            new_crdc_ids.append(crdc_id)
+                            if crdc_id not in existing_crdc_ids:
+                                self.insert_cross_record("records_x_crdc", "crdc", crdc_id, record["record_id"])
+                                modified_upstream = True
                 for eid in existing_crdc_ids:
                     if eid not in new_crdc_ids:
                         records_x_crdc_id = \
