@@ -690,31 +690,32 @@ class DBInterface:
             record["item_url"] = self.construct_local_url(record)
 
         con = self.getConnection()
-        with con:
-            cur = self.getRowCursor()
-            source_url = ""
-            if 'dc:source' in record:
-                if isinstance(record["dc:source"], list):
-                    source_url = record["dc:source"][0]
-                else:
-                    source_url = record["dc:source"]
-            if record["record_id"] is None:
-                modified_upstream = True # New record has new metadata
-                record["record_id"] = self.create_new_record(record, source_url, repo_id)
-            else:
-                # Compare title, title_fr, pub_date, series, source_url, item_url, local_identifier for changes
-                records = self.get_multiple_records("records", "*", "record_id", record["record_id"])
-                if len(records) == 1:
-                    existing_record = records[0]
-                    for record_field in ["title", "title_fr", "pub_date", "series", "item_url"]:
-                        if existing_record[record_field] != record[record_field]:
-                            modified_upstream = True
-                            break
-                    if existing_record["local_identifier"] != record["identifier"]:
-                        modified_upstream = True
-                    elif existing_record["source_url"] is None and existing_record["source_url"] != source_url:
-                        modified_upstream = True
 
+        source_url = ""
+        if 'dc:source' in record:
+            if isinstance(record["dc:source"], list):
+                source_url = record["dc:source"][0]
+            else:
+                source_url = record["dc:source"]
+        if record["record_id"] is None:
+            modified_upstream = True # New record has new metadata
+            record["record_id"] = self.create_new_record(record, source_url, repo_id)
+        else:
+            # Compare title, title_fr, pub_date, series, source_url, item_url, local_identifier for changes
+            records = self.get_multiple_records("records", "*", "record_id", record["record_id"])
+            if len(records) == 1:
+                existing_record = records[0]
+                for record_field in ["title", "title_fr", "pub_date", "series", "item_url"]:
+                    if existing_record[record_field] != record[record_field]:
+                        modified_upstream = True
+                        break
+                    modified_upstream = True
+                if existing_record["local_identifier"] != record["identifier"]:
+                    modified_upstream = True
+                elif existing_record["source_url"] is None and existing_record["source_url"] != source_url:
+                    modified_upstream = True
+            with con:
+                cur = self.getRowCursor()
                 cur.execute(self._prep(
                     """UPDATE records set title=?, title_fr=?, pub_date=?, series=?, modified_timestamp=?, source_url=?,
                     deleted=?, local_identifier=?, item_url=?
@@ -722,147 +723,146 @@ class DBInterface:
                     (record["title"], record["title_fr"], record["pub_date"], record["series"], time.time(),
                      source_url, 0, record["identifier"], record["item_url"], record["record_id"]))
 
-            if record["record_id"] is None:
-                return None
+        if record["record_id"] is None:
+            return None
 
-            # creators
-            if self.update_related_metadata(record, "records_x_creators", "creators", "creator", "creator_id", "and is_contributor=0", {"is_contributor": 0}):
-                modified_upstream = True
+        # creators
+        if self.update_related_metadata(record, "records_x_creators", "creators", "creator", "creator_id", "and is_contributor=0", {"is_contributor": 0}):
+            modified_upstream = True
 
-            # contributors
-            if self.update_related_metadata(record, "records_x_creators", "creators", "contributor", "creator_id", "and is_contributor=1", {"is_contributor": 1}):
-                modified_upstream = True
+        # contributors
+        if self.update_related_metadata(record, "records_x_creators", "creators", "contributor", "creator_id", "and is_contributor=1", {"is_contributor": 1}):
+            modified_upstream = True
 
-            # publishers
-            if self.update_related_metadata(record, "records_x_publishers", "publishers", "publisher", "publisher_id"):
-                modified_upstream = True
+        # publishers
+        if self.update_related_metadata(record, "records_x_publishers", "publishers", "publisher", "publisher_id"):
+            modified_upstream = True
 
-            # affiliations
-            if self.update_related_metadata(record, "records_x_affiliations", "affiliations", "affiliation", "affiliation_id"):
-                modified_upstream = True
+        # affiliations
+        if self.update_related_metadata(record, "records_x_affiliations", "affiliations", "affiliation", "affiliation_id"):
+            modified_upstream = True
 
-            # access
-            if self.update_related_metadata(record, "records_x_access", "access", "access", "access_id"):
-                modified_upstream = True
+        # access
+        if self.update_related_metadata(record, "records_x_access", "access", "access", "access_id"):
+            modified_upstream = True
 
-            # rights
-            if self.update_related_metadata(record, "records_x_rights", "rights", "rights", "rights_id"):
-                modified_upstream = True
+        # rights
+        if self.update_related_metadata(record, "records_x_rights", "rights", "rights", "rights_id"):
+            modified_upstream = True
 
-            # tags - en
-            if self.update_related_metadata(record, "records_x_tags", "tags", "tags", "tag_id", "and language='en'", {"language": "en"}):
-                modified_upstream = True
+        # tags - en
+        if self.update_related_metadata(record, "records_x_tags", "tags", "tags", "tag_id", "and language='en'", {"language": "en"}):
+            modified_upstream = True
 
-            # tags - fr
-            if self.update_related_metadata(record, "records_x_tags", "tags", "tags_fr", "tag_id", "and language='fr'", {"language": "fr"}):
-                modified_upstream = True
+        # tags - fr
+        if self.update_related_metadata(record, "records_x_tags", "tags", "tags_fr", "tag_id", "and language='fr'", {"language": "fr"}):
+            modified_upstream = True
 
-            # subjects - en
-            if self.update_related_metadata(record, "records_x_subjects", "subjects", "subject", "subject_id", "and language='en'", {"language": "en"}):
-                modified_upstream = True
+        # subjects - en
+        if self.update_related_metadata(record, "records_x_subjects", "subjects", "subject", "subject_id", "and language='en'", {"language": "en"}):
+            modified_upstream = True
 
-            # subjects - fr
-            if self.update_related_metadata(record, "records_x_subjects", "subjects", "subject_fr", "subject_id", "and language='fr'", {"language": "fr"}):
-                modified_upstream = True
+        # subjects - fr
+        if self.update_related_metadata(record, "records_x_subjects", "subjects", "subject_fr", "subject_id", "and language='fr'", {"language": "fr"}):
+            modified_upstream = True
 
-            # geoplaces
-            if self.update_related_metadata(record, "records_x_geoplace", "geoplace", "geoplaces", "geoplace_id"):
-                modified_upstream = True
+        # geoplaces
+        if self.update_related_metadata(record, "records_x_geoplace", "geoplace", "geoplaces", "geoplace_id"):
+            modified_upstream = True
 
-            # descriptions - en
-            if self.update_related_metadata(record, "descriptions", "descriptions", "description", "description_id", "and language='en'"):
-                modified_upstream = True
+        # descriptions - en
+        if self.update_related_metadata(record, "descriptions", "descriptions", "description", "description_id", "and language='en'"):
+            modified_upstream = True
 
-            # descriptions - fr
-            if self.update_related_metadata(record, "descriptions", "descriptions", "description_fr", "description_id", "and language='fr'"):
-                modified_upstream = True
+        # descriptions - fr
+        if self.update_related_metadata(record, "descriptions", "descriptions", "description_fr", "description_id", "and language='fr'"):
+            modified_upstream = True
 
-            # geobboxes
-            if self.update_related_metadata(record, "geobbox", "geobbox", "geobboxes", "geobbox_id"):
-                modified_upstream = True
+        # geobboxes
+        if self.update_related_metadata(record, "geobbox", "geobbox", "geobboxes", "geobbox_id"):
+            modified_upstream = True
 
-            # geopoints
-            if self.update_related_metadata(record, "geopoint", "geopoint", "geopoints", "geopoint_id"):
-                modified_upstream = True
+        # geopoints
+        if self.update_related_metadata(record, "geopoint", "geopoint", "geopoints", "geopoint_id"):
+            modified_upstream = True
 
-            # geofiles
-            if self.update_related_metadata(record, "geofile", "geofile", "geofiles", "geofile_id"):
-                modified_upstream = True
+        # geofiles
+        if self.update_related_metadata(record, "geofile", "geofile", "geofiles", "geofile_id"):
+            modified_upstream = True
 
-            # crdc
-            if "crdc" in record:
-                existing_crdc_recs = self.get_multiple_records("records_x_crdc", "*", "record_id",
-                                                                   record["record_id"])
-                existing_crdc_ids = [e["crdc_id"] for e in existing_crdc_recs]
-                new_crdc_ids = []
-                crdc_key_list = ["crdc_code", "crdc_group_en", "crdc_group_fr", "crdc_class_en", "crdc_class_fr", "crdc_field_en", "crdc_field_fr"]
-                for crdc in record["crdc"]:
-                    all_crdc_keys_found = True
-                    for key in crdc_key_list:
-                        if key not in crdc:
-                            all_crdc_keys_found = False
-                            break
-                    if all_crdc_keys_found:
-                        crdc_id = self.get_single_record_id("crdc", crdc["crdc_code"])
-                        extras = crdc.copy()
-                        extras.pop("crdc_code")
-                        if crdc_id is not None:
-                            # check if the existing CRDC entry matches - if not, update
-                            crdc_record = self.get_multiple_records("crdc", "*", "crdc_id", crdc_id)[0]
-                            for key in crdc_key_list:
-                                if crdc[key] != crdc_record[key]:
-                                    self.update_row_generic("crdc", crdc_id, extras)
-                                    modified_upstream = True
-                                    break
-                        if crdc_id is None:
-                            crdc_id = self.insert_related_record("crdc", crdc["crdc_code"], **extras)
-                            modified_upstream = True
-                        if crdc_id is not None:
-                            new_crdc_ids.append(crdc_id)
-                            if crdc_id not in existing_crdc_ids:
-                                self.insert_cross_record("records_x_crdc", "crdc", crdc_id, record["record_id"])
+        # crdc
+        if "crdc" in record:
+            existing_crdc_recs = self.get_multiple_records("records_x_crdc", "*", "record_id",
+                                                               record["record_id"])
+            existing_crdc_ids = [e["crdc_id"] for e in existing_crdc_recs]
+            new_crdc_ids = []
+            crdc_key_list = ["crdc_code", "crdc_group_en", "crdc_group_fr", "crdc_class_en", "crdc_class_fr", "crdc_field_en", "crdc_field_fr"]
+            for crdc in record["crdc"]:
+                all_crdc_keys_found = True
+                for key in crdc_key_list:
+                    if key not in crdc:
+                        all_crdc_keys_found = False
+                        break
+                if all_crdc_keys_found:
+                    crdc_id = self.get_single_record_id("crdc", crdc["crdc_code"])
+                    extras = crdc.copy()
+                    extras.pop("crdc_code")
+                    if crdc_id is not None:
+                        # check if the existing CRDC entry matches - if not, update
+                        crdc_record = self.get_multiple_records("crdc", "*", "crdc_id", crdc_id)[0]
+                        for key in crdc_key_list:
+                            if crdc[key] != crdc_record[key]:
+                                self.update_row_generic("crdc", crdc_id, extras)
                                 modified_upstream = True
-                for eid in existing_crdc_ids:
-                    if eid not in new_crdc_ids:
-                        records_x_crdc_id = \
-                            self.get_multiple_records("records_x_crdc", "records_x_crdc_id", "record_id",
-                                                      record["record_id"], " and crdc_id='"
-                                                      + str(eid) + "'")[0]["records_x_crdc_id"]
-                        self.delete_row_generic("records_x_crdc", "records_x_crdc_id", records_x_crdc_id)
+                                break
+                    if crdc_id is None:
+                        crdc_id = self.insert_related_record("crdc", crdc["crdc_code"], **extras)
                         modified_upstream = True
+                    if crdc_id is not None:
+                        new_crdc_ids.append(crdc_id)
+                        if crdc_id not in existing_crdc_ids:
+                            self.insert_cross_record("records_x_crdc", "crdc", crdc_id, record["record_id"])
+                            modified_upstream = True
+            for eid in existing_crdc_ids:
+                if eid not in new_crdc_ids:
+                    records_x_crdc_id = \
+                        self.get_multiple_records("records_x_crdc", "records_x_crdc_id", "record_id",
+                                                  record["record_id"], " and crdc_id='"
+                                                  + str(eid) + "'")[0]["records_x_crdc_id"]
+                    self.delete_row_generic("records_x_crdc", "records_x_crdc_id", records_x_crdc_id)
+                    modified_upstream = True
 
-            # domain metadata
-            if len(domain_metadata) > 0:
-                existing_metadata_recs = self.get_multiple_records("domain_metadata", "*", "record_id",
-                                                                  record["record_id"])
-                existing_metadata_ids = [e["metadata_id"] for e in existing_metadata_recs]
-                new_metadata_ids = []
-                for field_uri in domain_metadata:
-                    field_pieces = field_uri.split("#")
-                    domain_schema = field_pieces[0]
-                    field_name = field_pieces[1]
-                    schema_id = self.get_single_record_id("domain_schemas", domain_schema)
-                    if schema_id is None:
-                        schema_id = self.insert_related_record("domain_schemas", domain_schema)
-                    if not isinstance(domain_metadata[field_uri], list):
-                        domain_metadata[field_uri] = [domain_metadata[field_uri]]
-                    for field_value in domain_metadata[field_uri]:
-                        extras = {"record_id": record["record_id"], "field_name": field_name, "field_value": field_value}
-                        metadata_id = self.get_single_record_id("domain_metadata", schema_id, "", **extras)
-                        if metadata_id is None:
-                            extras = {"record_id": record["record_id"], "field_name": field_name,
-                                      "field_value": field_value}
-                            metadata_id = self.insert_related_record("domain_metadata", schema_id, **extras)
-                        if metadata_id is not None:
-                            new_metadata_ids.append(metadata_id)
+        # domain metadata
+        if len(domain_metadata) > 0:
+            existing_metadata_recs = self.get_multiple_records("domain_metadata", "*", "record_id",
+                                                              record["record_id"])
+            existing_metadata_ids = [e["metadata_id"] for e in existing_metadata_recs]
+            new_metadata_ids = []
+            for field_uri in domain_metadata:
+                field_pieces = field_uri.split("#")
+                domain_schema = field_pieces[0]
+                field_name = field_pieces[1]
+                schema_id = self.get_single_record_id("domain_schemas", domain_schema)
+                if schema_id is None:
+                    schema_id = self.insert_related_record("domain_schemas", domain_schema)
+                if not isinstance(domain_metadata[field_uri], list):
+                    domain_metadata[field_uri] = [domain_metadata[field_uri]]
+                for field_value in domain_metadata[field_uri]:
+                    extras = {"record_id": record["record_id"], "field_name": field_name, "field_value": field_value}
+                    metadata_id = self.get_single_record_id("domain_metadata", schema_id, "", **extras)
+                    if metadata_id is None:
+                        extras = {"record_id": record["record_id"], "field_name": field_name,
+                                  "field_value": field_value}
+                        metadata_id = self.insert_related_record("domain_metadata", schema_id, **extras)
+                    if metadata_id is not None:
+                        new_metadata_ids.append(metadata_id)
+            for eid in existing_metadata_ids:
+                if eid not in new_metadata_ids:
+                    self.delete_row_generic("domain_metadata", "metadata_id", eid)
+                    modified_upstream = True
 
-                for eid in existing_metadata_ids:
-                    if eid not in new_metadata_ids:
-                        self.delete_row_generic("domain_metadata", "metadata_id", eid)
-                        modified_upstream = True
-
-            if modified_upstream:
-                self.update_record_upstream_modified(record)
+        if modified_upstream:
+            self.update_record_upstream_modified(record)
 
         return None
 
