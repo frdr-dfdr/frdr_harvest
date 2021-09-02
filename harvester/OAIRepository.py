@@ -317,7 +317,7 @@ class OAIRepository(HarvestRepository):
                 if not record.get("files_size") == sizes:
                     record["files_altered"] = 1
                     record["files_size"] = sizes
-                    record["geodisy_harvested"] == 0
+                    record["geodisy_harvested"] = 0
             except Exception as e:
                 self.logger.error(
                     "Something wrong trying to access files length from hostname: {} , path: {}".format(

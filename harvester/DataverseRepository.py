@@ -262,8 +262,8 @@ class DataverseRepository(HarvestRepository):
                     # This record has been deaccessioned, remove it from the results
                     self.db.delete_record(record)
             else:
-                    # Some other problem, this record will be updated by a future crawl
-                    self.db.touch_record(record)
+                # Some other problem, this record will be updated by a future crawl
+                self.db.touch_record(record)
             return True
         except Exception as e:
             self.logger.error("Updating record {} failed: {}".format(record['local_identifier'], e))
