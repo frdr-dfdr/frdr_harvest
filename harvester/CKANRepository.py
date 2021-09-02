@@ -84,6 +84,11 @@ class CKANRepository(HarvestRepository):
             if ckan_record['type'] in ['showcase', 'publications', 'info', 'harvest']:
                 return False
 
+        if ('portal_type' in ckan_record) and ckan_record['portal_type']:
+            # Exclude "info" records (not "data") from Canadian Space Agency
+            if ckan_record['portal_type'] in ['info']:
+                return False
+
         if not 'date_published' in ckan_record and not 'dates' in ckan_record and not 'record_publish_date' in ckan_record and not 'metadata_created' in ckan_record and not 'date_issued' in ckan_record:
             return None
 
@@ -121,9 +126,12 @@ class CKANRepository(HarvestRepository):
 
         record["creator"] = [ftfy.fixes.decode_escapes(x).strip() for x in record["creator"] if x != '']
 
-        if ('owner_division' in ckan_record) and ckan_record['owner_division']:
-            # Toronto
-            record["publisher"] = ckan_record['owner_division']
+        record["contributor"] = []
+        # CSA only
+        if "data_steward" in ckan_record and ckan_record["data_steward"]:
+            record["contributor"].append(ckan_record["data_steward"])
+        if "manager_or_supervisor" in ckan_record and ckan_record["manager_or_supervisor"]:
+            record["contributor"].append(ckan_record["manager_or_supervisor"])
 
         # CIOOS only
         if ('metadata-point-of-contact' in ckan_record) and ckan_record['metadata-point-of-contact']:
@@ -135,8 +143,11 @@ class CKANRepository(HarvestRepository):
             if ("individual-name" in point_of_contact) and point_of_contact["individual-name"]:
                 if point_of_contact["individual-name"] not in record["creator"]:
                     record["contributor"].append(point_of_contact["individual-name"])
-            if isinstance(record["contributor"], list):
-                record["contributor"] = [x.strip() for x in record["contributor"] if x != '']
+
+        record["contributor"] = list(set([x.strip() for x in record["contributor"] if x != '']))
+        record["contributor"] = list(set(record["contributor"]))
+        if len(record["contributor"]) == 0:
+            record.pop("contributor")
 
         # CIOOS only
         if ('organization' in ckan_record) and ckan_record['organization']:
@@ -149,6 +160,10 @@ class CKANRepository(HarvestRepository):
                     record["publisher"] = record["publisher"][3:]
                 elif record["publisher"][-3:] == (" / "):
                     record["publisher"] = record["publisher"][:-3]
+
+        if ('owner_division' in ckan_record) and ckan_record['owner_division']:
+            # Toronto
+            record["publisher"] = ckan_record['owner_division']
 
         record["identifier"] = local_identifier
 
