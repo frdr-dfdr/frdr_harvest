@@ -109,7 +109,7 @@ class RepoList(Resource):
 # Shows a single record
 class Record(Resource):
 
-    editable_fields = ["geodisy_harvested"]
+    editable_fields = ["geodisy_harvested", "files_altered"]
 
     def get(self, record_id):
         record_id = int(record_id)
@@ -140,7 +140,8 @@ class Record(Resource):
                     "series": record["series"],
                     "item_url": record["item_url"],
                     "upstream_modified_timestamp": int(record["upstream_modified_timestamp"]),
-                    "geodisy_harvested": int(record["geodisy_harvested"])
+                    "geodisy_harvested": int(record["geodisy_harvested"]),
+                    "files_altered": int(record["files_altered"])
                 }
             return this_record
 

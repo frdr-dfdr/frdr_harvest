@@ -4,7 +4,7 @@
             "name": "FRDR",
             "url": "https://dev6.frdr.ca/oai/request",
             "homepage_url": "https://dev6.frdr.ca/",
-            "set": "col_storagegroup1",
+            "set": "col_123456789_2",
             "thumbnail": "https://dev6.frdr.ca/discover/img/sources/frdr_80x80.png",
             "type": "oai",
             "metadataprefix": "frdr",
