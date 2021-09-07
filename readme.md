@@ -1,10 +1,25 @@
 # FRDR Harvester
 
-This is a repository crawler which outputs gmeta.json files for indexing by Globus. It currently supports OAI, CKAN, MarkLogic, Socrata, CSW, DataStream, and OpenDataSoft repositories.
+This is a repository crawler which outputs gmeta.json files for indexing by Globus. It currently supports harvesting with the following standards and APIs:
 
-Configuration is split into two files. The first controls the operation of the indexer, and is located in conf/harvester.conf.
+- Repositories using any of these platforms:
+    - [Dataverse](https://dataverse.org/)
+    - [CKAN](https://ckan.org/)
+    - [Socrata](https://dev.socrata.com/)
+    - [OpenDataSoft](https://www.opendatasoft.com/)
+    - [ArcGIS](https://www.esri.com/en-us/arcgis/products/arcgis-open-data)
+    - [MarkLogic](https://www.marklogic.com/)
+- Repositories that implement either of these standards:
+    - [OAI-PMH](https://www.openarchives.org/pmh/)
+    - [Catalogue Service for the Web (CSW)](https://www.ogc.org/standards/cat)
+- Repositories that register DOIs with [DataCite](https://datacite.org/)
+- Individual repositories with a REST API, sitemap, or other means providing machine-readable metadata
 
-The list of repositories to be crawled is in conf/repos.json, in a structure like to this:
+
+Configuration is split into two files:
+
+- The first controls the operation of the indexer, and is located in conf/harvester.conf.
+- The list of repositories to be crawled is in conf/repos.json, in a structure like to this:
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ json
 {
