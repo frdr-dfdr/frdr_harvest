@@ -5,3 +5,5 @@ lockfile
 venv/
 .idea/
 temp/
+conf/repos.json
+ 
