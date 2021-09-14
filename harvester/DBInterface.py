@@ -1011,7 +1011,7 @@ class DBInterface:
 
             for eid in existing_geoplace_ids:
                 if eid not in new_geoplace_ids:
-                    self.delete_one_related_record("records_x_geoplace", eid, record["record_id"])ecords_x_geoplace_id"])
+                    self.delete_one_related_record("records_x_geoplace", eid, record["record_id"])
                     modified_upstream = True
 
         if "crdc" in record:
