@@ -511,18 +511,18 @@ class DBInterface:
                 if self.dbtype == "postgres":
                     cur.execute(self._prep(
                         """INSERT INTO records (title, title_fr, pub_date, series, modified_timestamp, source_url,
-                        deleted, local_identifier, item_url, repository_id, upstream_modified_timestamp)
-                        VALUES(?,?,?,?,?,?,?,?,?,?,?) RETURNING record_id"""),
+                        deleted, local_identifier, item_url, repository_id, upstream_modified_timestamp, files_size, files_altered)
+                        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING record_id"""),
                         (rec["title"], rec["title_fr"], rec["pub_date"],  rec["series"], time.time(), source_url, 0,
-                         rec["identifier"], rec["item_url"], repo_id, time.time()))
+                         rec["identifier"], rec["item_url"], repo_id, time.time(), rec["files_size"], rec["files_altered"]))
                     returnvalue = int(cur.fetchone()['record_id'])
                 if self.dbtype == "sqlite":
                     cur.execute(self._prep(
                         """INSERT INTO records (title, title_fr, pub_date, series, modified_timestamp, source_url,
-                        deleted, local_identifier, item_url, repository_id, upstream_modified_timestamp)
-                        VALUES(?,?,?,?,?,?,?,?,?,?,?)"""),
+                        deleted, local_identifier, item_url, repository_id, upstream_modified_timestamp, files_size, files_altered)
+                        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)"""),
                         (rec["title"], rec["title_fr"], rec["pub_date"], rec["series"], time.time(), source_url, 0,
-                         rec["identifier"], rec["item_url"], repo_id, time.time()))
+                         rec["identifier"], rec["item_url"], repo_id, time.time(), rec["files_size"], rec["files_altered"]))
                     returnvalue = int(cur.lastrowid)
             except self.dblayer.IntegrityError as e:
                 self.logger.error("Record insertion problem: {}".format(e))
@@ -679,7 +679,7 @@ class DBInterface:
     def write_record(self, record, repo):
         repo_id = repo.repository_id
         domain_metadata = repo.domain_metadata
-        modified_upstream = False # Track whether metadata changed since last crawl
+        modified_upstream = False  # Track whether metadata changed since last crawl
 
         if record is None:
             return None
@@ -714,14 +714,19 @@ class DBInterface:
                     modified_upstream = True
                 elif existing_record["source_url"] is None and existing_record["source_url"] != source_url:
                     modified_upstream = True
+
+                if existing_record["files_size"] != record["files_size"]:
+                    record["files_altered"] = 1
+                    modified_upstream = True
+
             with con:
                 cur = self.getRowCursor()
                 cur.execute(self._prep(
                     """UPDATE records set title=?, title_fr=?, pub_date=?, series=?, modified_timestamp=?, source_url=?,
-                    deleted=?, local_identifier=?, item_url=?
+                    deleted=?, local_identifier=?, item_url=?, files_size=?, files_altered=?
                     WHERE record_id = ?"""),
                     (record["title"], record["title_fr"], record["pub_date"], record["series"], time.time(),
-                     source_url, 0, record["identifier"], record["item_url"], record["record_id"]))
+                     source_url, 0, record["identifier"], record["item_url"], record["files_size"], record["files_altered"], record["record_id"]))
 
         if record["record_id"] is None:
             return None
@@ -905,8 +910,8 @@ class DBInterface:
                 try:
                     cur.execute(self._prep(
                         "INSERT INTO records (title, title_fr, pub_date, series, modified_timestamp, local_identifier"
-                        ", item_url, repository_id, upstream_modified_timestamp) VALUES(?,?,?,?,?,?,?,?,?)"),
-                        ("", "", "", "", 0, local_identifier, "", repo_id, time.time()))
+                        ", item_url, repository_id, upstream_modified_timestamp, files_size, files_altered) VALUES(?,?,?,?,?,?,?,?,?,?,?)"),
+                        ("", "", "", "", 0, local_identifier, "", repo_id, time.time(), 0, 1))
                 except self.dblayer.IntegrityError as e:
                     self.logger.error("Error creating record header: {}".format(e))
 

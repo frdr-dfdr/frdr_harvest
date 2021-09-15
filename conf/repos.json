@@ -1,14 +1,4 @@
 {
     "repos": [
-     {
-          "name": "DataStream",
-          "url": "https://api.datacite.org/dois",
-          "homepage_url": "https://datastream.org/",
-          "thumbnail": "https://test.frdr.ca/discover/img/sources/datastream_80x80.png",
-          "type": "datastream",
-          "set": "wdgcf.datastream",
-          "item_url_pattern": "https://datastream.org/dataset/%id%",
-          "enabled": true
-      }
     ]
 }
