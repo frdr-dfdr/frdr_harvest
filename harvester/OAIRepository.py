@@ -271,10 +271,10 @@ class OAIRepository(HarvestRepository):
                         place["province_state"] = place_split[2]
                         place["city"] = place_split[1]
                         place["other"] = place_split[0]
-                        record["geoplaces"].append(place)
                     else:
                         place = {"place_name": geo_place}
-                    record["geoplaces"].append(place)
+                    if place not in record["geoplaces"]:
+                        record["geoplaces"].append(place)
 
             if "http://datacite.org/schema/kernel-4#geolocationPoint" in record:
                 record["geopoints"] = []
