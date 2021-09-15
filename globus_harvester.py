@@ -36,6 +36,7 @@ from harvester.DataStreamRepository import DataStreamRepository
 from harvester.ArcGISRepository import ArcGISRepository
 from harvester.DataCiteRepository import DataCiteRepository
 from harvester.DryadRepository import DryadRepository
+from harvester.ZenodoRepository import ZenodoRepository
 from harvester.DBInterface import DBInterface
 from harvester.HarvestLogger import HarvestLogger
 from harvester.TimeFormatter import TimeFormatter
@@ -154,6 +155,8 @@ if __name__ == "__main__":
                 repo = DataCiteRepository(final_config)
             elif repoconfig['type'] == "dryad":
                 repo = DryadRepository(final_config)
+            elif repoconfig['type'] == "zenodo":
+                repo = ZenodoRepository(final_config)
             repo.setLogger(main_log)
             if 'copyerrorstoemail' in repoconfig and not repoconfig['copyerrorstoemail']:
                 main_log.setErrorsToEmail(False)
