@@ -1,10 +1,6 @@
 from harvester.HarvestRepository import HarvestRepository
 import requests
 import time
-import json
-import re
-import os.path
-from dateutil import parser
 
 
 class DataverseRepository(HarvestRepository):
@@ -60,7 +56,7 @@ class DataverseRepository(HarvestRepository):
                     # Write dataverse_hierarchy - minus the repository id - plus identifier as local_identifier
                     dataverse_hierarchy_string = "_".join(dataverse_hierarchy_split[1:])
                     combined_identifier = combined_identifier + "_" + dataverse_hierarchy_string
-                result = self.db.write_header(combined_identifier, self.repository_id)
+                self.db.write_header(combined_identifier, self.repository_id)
                 item_count = item_count + 1
                 if (item_count % self.update_log_after_numitems == 0):
                     tdelta = time.time() - self.tstart + 0.1
@@ -105,8 +101,8 @@ class DataverseRepository(HarvestRepository):
                     record["series"].append(dataverse_name)
             record["series"] = " // ".join(record["series"]) # list of sub-dataverse names
 
-        if "latestVersion" not in dataverse_record:
-            # Dataset is deaccessioned
+        if "latestVersion" not in dataverse_record or "Dryad2Dataverse" in record["series"]:
+            # Dataset is deaccessioned or duplicate
             record["deleted"] = 1
             record["title"], record["title_fr"] = "", ""
             return record
@@ -266,15 +262,15 @@ class DataverseRepository(HarvestRepository):
                     # This record has been deaccessioned, remove it from the results
                     self.db.delete_record(record)
             else:
-                    # Some other problem, this record will be updated by a future crawl
-                    self.db.touch_record(record)
+                # Some other problem, this record will be updated by a future crawl
+                self.db.touch_record(record)
             return True
         except Exception as e:
             self.logger.error("Updating record {} failed: {}".format(record['local_identifier'], e))
             if self.dump_on_failure == True:
                 try:
                     print(dataverse_record)
-                except:
+                except Exception as e:
                     pass
             # Touch the record so we do not keep requesting it on every run
             self.db.touch_record(record)

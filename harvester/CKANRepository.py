@@ -4,7 +4,6 @@ import ckanapi
 import time
 import json
 import re
-import os.path
 import ftfy
 import requests
 
@@ -68,7 +67,7 @@ class CKANRepository(HarvestRepository):
             if not self.ckan_include_identifier_pattern or self.ckan_include_identifier_pattern in ckan_identifier: # Yukon
                 if self.ckan_strip_from_identifier:
                     ckan_identifier = ckan_identifier.replace(self.ckan_strip_from_identifier,"")
-                result = self.db.write_header(ckan_identifier, self.repository_id)
+                self.db.write_header(ckan_identifier, self.repository_id)
                 item_count = item_count + 1
                 if (item_count % self.update_log_after_numitems == 0):
                     tdelta = time.time() - self.tstart + 0.1
@@ -85,6 +84,11 @@ class CKANRepository(HarvestRepository):
             if ckan_record['type'] in ['showcase', 'publications', 'info', 'harvest']:
                 return False
 
+        if ('portal_type' in ckan_record) and ckan_record['portal_type']:
+            # Exclude "info" records (not "data") from Canadian Space Agency
+            if ckan_record['portal_type'] in ['info']:
+                return False
+
         if not 'date_published' in ckan_record and not 'dates' in ckan_record and not 'record_publish_date' in ckan_record and not 'metadata_created' in ckan_record and not 'date_issued' in ckan_record:
             return None
 
@@ -96,7 +100,7 @@ class CKANRepository(HarvestRepository):
                 record["creator"] = []
                 for author in authors:
                     record["creator"].append(author["author_name"])
-            except:
+            except Exception as e:
                 record["creator"] = ckan_record['author']
         elif ('maintainer' in ckan_record) and ckan_record['maintainer']:
             record["creator"] = ckan_record['maintainer']
@@ -122,9 +126,12 @@ class CKANRepository(HarvestRepository):
 
         record["creator"] = [ftfy.fixes.decode_escapes(x).strip() for x in record["creator"] if x != '']
 
-        if ('owner_division' in ckan_record) and ckan_record['owner_division']:
-            # Toronto
-            record["publisher"] = ckan_record['owner_division']
+        record["contributor"] = []
+        # CSA only
+        if "data_steward" in ckan_record and ckan_record["data_steward"]:
+            record["contributor"].append(ckan_record["data_steward"])
+        if "manager_or_supervisor" in ckan_record and ckan_record["manager_or_supervisor"]:
+            record["contributor"].append(ckan_record["manager_or_supervisor"])
 
         # CIOOS only
         if ('metadata-point-of-contact' in ckan_record) and ckan_record['metadata-point-of-contact']:
@@ -136,8 +143,11 @@ class CKANRepository(HarvestRepository):
             if ("individual-name" in point_of_contact) and point_of_contact["individual-name"]:
                 if point_of_contact["individual-name"] not in record["creator"]:
                     record["contributor"].append(point_of_contact["individual-name"])
-            if isinstance(record["contributor"], list):
-                record["contributor"] = [x.strip() for x in record["contributor"] if x != '']
+
+        record["contributor"] = list(set([x.strip() for x in record["contributor"] if x != '']))
+        record["contributor"] = list(set(record["contributor"]))
+        if len(record["contributor"]) == 0:
+            record.pop("contributor")
 
         # CIOOS only
         if ('organization' in ckan_record) and ckan_record['organization']:
@@ -151,9 +161,17 @@ class CKANRepository(HarvestRepository):
                 elif record["publisher"][-3:] == (" / "):
                     record["publisher"] = record["publisher"][:-3]
 
+        if ('owner_division' in ckan_record) and ckan_record['owner_division']:
+            # Toronto
+            record["publisher"] = ckan_record['owner_division']
+
         record["identifier"] = local_identifier
 
-        if self.item_url_pattern:
+        # If a CanWin Data Hub record has a doi it is preferred over the local identifier
+        doi = ckan_record.get("project_doi")
+        if self.name == 'CanWin Data Hub' and doi and doi.strip():
+            record["item_url"] = "https://doi.org/" + ckan_record['project_doi']
+        elif self.item_url_pattern:
             record["item_url"] = self.item_url_pattern.replace("%id%", ckan_record["id"])
         else:
             record["item_url"] = ckan_record["url"]
@@ -228,7 +246,7 @@ class CKANRepository(HarvestRepository):
             elif self.default_language == "fr":
                 record["subject_fr"] = ckan_record.get('subject', "")
         elif "groups" in ckan_record and ckan_record["groups"]:
-            # Surrey, CanWin Data Hub, Quebec, Montreal, Yukon (plus Regina, Guelph, Niagara)
+            # Surrey, CanWin Data Hub, Quebec, Montreal, Yukon (plus Guelph, Niagara)
             record["subject"] = []
             record["subject_fr"] = []
             for group in ckan_record["groups"]:
@@ -294,7 +312,7 @@ class CKANRepository(HarvestRepository):
             try:
                 month_day_year = record["pub_date"].split(", ")[1].split(" - ")[0].split("/")
                 record["pub_date"] = month_day_year[2] + "-" + month_day_year[0] + "-" + month_day_year[1]
-            except:
+            except Exception as e:
                 pass
 
         # Some date formats have a trailing timestamp after date (ie: "2014-12-10T15:05:03.074998Z")
@@ -310,7 +328,7 @@ class CKANRepository(HarvestRepository):
 
         try:
             record["series"] = ckan_record["data_series_name"]["en"]
-        except:
+        except Exception as e:
             record["series"] = ckan_record.get("data_series_name", "")
 
         if isinstance(record["series"], dict):
@@ -429,7 +447,7 @@ class CKANRepository(HarvestRepository):
                 geofile = {}
                 try:
                     url = ckan_file["url"].split("?")[0] # remove any query parameters
-                    filename = url.split("/")[len(url.split("/"))-1] # get the last part after the slasy
+                    filename = url.split("/")[len(url.split("/"))-1] # get the last part after the slash
                     extension = "." + filename.split(".")[len(filename.split("."))-1]
                     if extension.lower() in self.geofile_extensions:
                         geofile["uri"] = url
@@ -482,7 +500,7 @@ class CKANRepository(HarvestRepository):
             if self.dump_on_failure == True:
                 try:
                     print(ckan_record)
-                except:
+                except Exception as e:
                     pass
             # Touch the record so we do not keep requesting it on every run
             self.db.touch_record(record)

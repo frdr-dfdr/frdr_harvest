@@ -1,18 +1,13 @@
-import urllib
-
 import requests as requests
-
 from harvester.HarvestRepository import HarvestRepository
 from harvester.rate_limited import rate_limited
 from sickle import Sickle
-from sickle.iterator import BaseOAIIterator, OAIItemIterator, OAIResponseIterator
-from sickle.models import OAIItem, Record, Header
-from sickle.oaiexceptions import BadArgument, CannotDisseminateFormat, IdDoesNotExist, NoSetHierarchy, \
-    BadResumptionToken, NoRecordsMatch, OAIError
+from sickle.iterator import BaseOAIIterator
+from sickle.models import OAIItem, Header
+from sickle.oaiexceptions import IdDoesNotExist
 from collections import defaultdict
 import re
 import dateparser
-import os.path
 import time
 import json
 
@@ -88,7 +83,7 @@ class FRDRItemIterator(BaseOAIIterator):
 def get_frdr_filenames(base_url):
     if base_url == "":
         return ""
-    full_url = base_url + "file_sizes.json?download=1:1"
+    full_url = base_url + "file_sizes_perm.json?download=0"
     session = requests.Session()
     session.headers.update({'referer': full_url})
     file = session.get(full_url)
@@ -100,8 +95,23 @@ def get_frdr_filenames(base_url):
         for f in files:
             file_names.append(f["name"])
         return file_names
-    except:
+    except Exception as e:
         return ""
+
+
+def get_frdr_files_size(base_url):
+    if base_url == "":
+        return 0
+    full_url = base_url + "file_sizes_perm.json?download=0"
+    session = requests.Session()
+    session.headers.update({'referer': full_url})
+    file = session.get(full_url)
+    file_text = file.text
+    try:
+        data = json.loads(file_text)
+        return data["size"]
+    except Exception as e:
+        return 0
 
 
 class OAIRepository(HarvestRepository):
@@ -121,7 +131,7 @@ class OAIRepository(HarvestRepository):
                 records = self.sickle.ListRecords(metadataPrefix=self.metadataprefix, ignore_deleted=True)
             else:
                 records = self.sickle.ListRecords(metadataPrefix=self.metadataprefix, ignore_deleted=True, set=self.set)
-        except:
+        except Exception as e:
             self.logger.info("No items were found")
 
         kwargs = {
@@ -179,7 +189,6 @@ class OAIRepository(HarvestRepository):
                 # probably not a valid OAI record
                 # Islandora throws this for non-object directories
                 self.logger.debug("AttributeError while working on item {}".format(item_count))
-                pass
 
             except StopIteration:
                 break
@@ -232,13 +241,45 @@ class OAIRepository(HarvestRepository):
 
         # Parse FRDR records
         if self.metadataprefix.lower() == "frdr":
+            if "https://www.frdr-dfdr.ca/schema/1.0/#crdc" in record:
+                record["crdc"] = []
+                crdc_index = 0
+                while crdc_index < len(record["https://www.frdr-dfdr.ca/schema/1.0/#crdcCode"]):
+                    en_index = crdc_index*2
+                    fr_index = en_index + 1
+                    record["crdc"].append({
+                        "crdc_code": record["https://www.frdr-dfdr.ca/schema/1.0/#crdcCode"][crdc_index],
+                        "crdc_group_en": record["https://www.frdr-dfdr.ca/schema/1.0/#crdcGroup"][en_index],
+                        "crdc_group_fr": record["https://www.frdr-dfdr.ca/schema/1.0/#crdcGroup"][fr_index],
+                        "crdc_class_en": record["https://www.frdr-dfdr.ca/schema/1.0/#crdcClass"][en_index],
+                        "crdc_class_fr": record["https://www.frdr-dfdr.ca/schema/1.0/#crdcClass"][fr_index],
+                        "crdc_field_en": record["https://www.frdr-dfdr.ca/schema/1.0/#crdcField"][en_index],
+                        "crdc_field_fr": record["https://www.frdr-dfdr.ca/schema/1.0/#crdcField"][fr_index],
+                    })
+                    crdc_index += 1
+
+            if "dateissued" in record:
+                record["pub_date"] = record["dateissued"]
+
             if "http://datacite.org/schema/kernel-4#geolocationPlace" in record:
-                record["coverage"] = record.get("http://datacite.org/schema/kernel-4#geolocationPlace")
+                record["geoplaces"] = []
+                for geo_place in record["http://datacite.org/schema/kernel-4#geolocationPlace"]:
+                    place_split = geo_place.split(';')
+                    if len(place_split) == 4 or (len(place_split) == 5 and place_split[4] == ""):
+                        place = {}
+                        place["country"] = place_split[3]
+                        place["province_state"] = place_split[2]
+                        place["city"] = place_split[1]
+                        place["other"] = place_split[0]
+                    else:
+                        place = {"place_name": geo_place}
+                    if place not in record["geoplaces"]:
+                        record["geoplaces"].append(place)
 
             if "http://datacite.org/schema/kernel-4#geolocationPoint" in record:
                 record["geopoints"] = []
                 for geopoint in record["http://datacite.org/schema/kernel-4#geolocationPoint"]:
-                    point_split = re.compile(",? ").split(geopoint)
+                    point_split = geopoint.split()
                     if len(point_split) == 2:
                         record["geopoints"].append({"lat": point_split[0], "lon": point_split[1]})
 
@@ -265,24 +306,39 @@ class OAIRepository(HarvestRepository):
 
             if len(record["contributor"]) == 0:
                 record.pop("contributor")
+            #File info base
 
-            # Get geospatial files
             endpoint_hostname = "https://" + record.get("https://www.frdr-dfdr.ca/schema/1.0/#globusHttpsHostname", [""])[0]
             endpoint_path = record.get("https://www.frdr-dfdr.ca/schema/1.0/#globusEndpointPath", [""])[0]
-            try:
-                filenames = get_frdr_filenames(endpoint_hostname + endpoint_path)
 
-                # Get File Download URLs
-                for f in filenames:
-                    file_segments = len(f.split("."))
-                    extension = "." + f.split(".")[file_segments - 1]
-                    if extension.lower() in self.geofile_extensions:
-                        geofile = {}
-                        geofile["filename"] = f
-                        geofile["uri"] = endpoint_hostname + endpoint_path + "submitted_data/" + f
-                        record.setdefault("geofiles", []).append(geofile)
-            except:
-                self.logger.error("Something wrong trying to access files from hostname: {} , path: {}".format(endpoint_hostname, endpoint_path))
+            # Get all File sizes
+            try:
+                sizes = get_frdr_files_size(endpoint_hostname + endpoint_path)
+                if not record.get("files_size") == sizes:
+                    record["files_altered"] = 1
+                    record["files_size"] = sizes
+                    record["geodisy_harvested"] = 0
+            except Exception as e:
+                self.logger.error(
+                    "Something wrong trying to access files length from hostname: {} , path: {}".format(
+                        endpoint_hostname,
+                        endpoint_path))
+
+            # Get geospatial files
+            if "geodisy_harvested" not in record or record["geodisy_harvested"] == 0:
+                try:
+                    filenames = get_frdr_filenames(endpoint_hostname + endpoint_path)
+                    # Get File Download URLs
+                    for f in filenames:
+                        file_segments = len(f.split("."))
+                        extension = "." + f.split(".")[file_segments - 1]
+                        if extension.lower() in self.geofile_extensions:
+                            geofile = {}
+                            geofile["filename"] = f
+                            geofile["uri"] = endpoint_hostname + endpoint_path + "submitted_data/" + f
+                            record.setdefault("geofiles", []).append(geofile)
+                except Exception as e:
+                    self.logger.error("Something wrong trying to access files from hostname: {} , path: {}".format(endpoint_hostname, endpoint_path))
 
         if "identifier" not in record:
             return None
@@ -358,7 +414,7 @@ class OAIRepository(HarvestRepository):
             if date_object is None:
                 date_object = dateparser.parse(record["pub_date"], date_formats=["%Y%m%d"])
             record["pub_date"] = date_object.strftime("%Y-%m-%d")
-        except:
+        except Exception as e:
             self.logger.error("Something went wrong parsing the date, {} from {}".format(record["pub_date"]
                               , (record["dc:source"] if record["identifier"] is None else record["identifier"])))
             return None
@@ -388,6 +444,8 @@ class OAIRepository(HarvestRepository):
             if "tags_fr" not in record:
                 record["tags_fr"] = record.get("subject")
                 record.pop("subject", None)
+                if record["tags_fr"] is None:
+                    record.pop("tags_fr")
         else:
             if isinstance(record["title"], list):
                 record["title"] = record["title"][0].strip()
@@ -398,6 +456,8 @@ class OAIRepository(HarvestRepository):
             if "tags" not in record:
                 record["tags"] = record.get("subject")
                 record.pop("subject", None)
+                if record["tags"] is None:
+                    record.pop("tags")
 
         if "publisher" in record:
             if isinstance(record["publisher"], list):
@@ -421,13 +481,13 @@ class OAIRepository(HarvestRepository):
             if record["type"] and "Dataset" not in record["type"]:
                 return None
 
-        # EPrints workaround to fix duplicates and Nones in Rights
         if "rights" in record and isinstance(record["rights"], list):
-            record["rights"] = list(set(filter(None.__ne__, record["rights"])))
-            record["rights"] = "\n".join(record["rights"])
-
+            record["rights"] = list(set(filter(None.__ne__, record["rights"]))) # Remove duplicates and Nones from Rights (FRDR, Eprints)
+            record["rights"].sort() # Ensure consistent order
+            record["rights"] = "\n".join(record["rights"]) # Join all rights entries into one
 
         return record
+
     def find_domain_metadata(self, record):
         # Exclude fundingReference and nameIdentifier; need a way to group linked fields in display first
         excludedElements = ["http://datacite.org/schema/kernel-4#resourcetype",
@@ -449,7 +509,12 @@ class OAIRepository(HarvestRepository):
                     "http://datacite.org/schema/kernel-4#creatorNameIdentifier",
                     "http://datacite.org/schema/kernel-4#fundingReferenceFunderName",
                     "http://datacite.org/schema/kernel-4#fundingReferenceAwardNumber",
-                    "http://datacite.org/schema/kernel-4#fundingReferenceAwardTitle"]
+                    "http://datacite.org/schema/kernel-4#fundingReferenceAwardTitle",
+                    "https://www.frdr-dfdr.ca/schema/1.0/#crdc",
+                    "https://www.frdr-dfdr.ca/schema/1.0/#crdcCode",
+                    "https://www.frdr-dfdr.ca/schema/1.0/#crdcGroup",
+                    "https://www.frdr-dfdr.ca/schema/1.0/#crdcClass",
+                    "'https://www.frdr-dfdr.ca/schema/1.0/#crdcField'"]
         newRecord = {}
         for elementName in list(record):
             if '#' in elementName:
@@ -478,6 +543,8 @@ class OAIRepository(HarvestRepository):
                 metadata["date"] = single_record.header.datestamp
 
             metadata["identifier"] = single_record.header.identifier
+            metadata["geodisy_harvested"] = single_record.get("geodisy_harvested", 0)
+            metadata["fizes_size"] = single_record.get("files_size", 0)
             oai_record = self.unpack_oai_metadata(metadata)
             self.domain_metadata = self.find_domain_metadata(metadata)
             if oai_record is None:
@@ -497,7 +564,7 @@ class OAIRepository(HarvestRepository):
             if self.dump_on_failure == True:
                 try:
                     print(single_record.metadata)
-                except:
+                except Exception as e:
                     pass
             # Touch the record so we do not keep requesting it on every run
             self.db.touch_record(record)

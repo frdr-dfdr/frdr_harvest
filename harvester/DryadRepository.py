@@ -2,9 +2,6 @@ from harvester.HarvestRepository import HarvestRepository
 import requests
 import time
 import json
-import re
-import os.path
-from dateutil import parser
 from datetime import datetime
 import urllib
 
@@ -21,14 +18,17 @@ class DryadRepository(HarvestRepository):
             'accept': "application/json",
             "content-type": "application/json"
         }
-        self.ror_data_file = 'conf/ror-data-2021-04-06.json'
-        with open(self.ror_data_file) as f:
-            ror_data_list = json.load(f)
-            self.ror_data = {}
-            for ror_entry in ror_data_list:
-                self.ror_data[ror_entry["id"]] = ror_entry
+        self.ror_data = None
 
     def _crawl(self):
+        if not self.load_ror_data():
+            self.logger.error("ROR data could not be fetched from remote")
+            return
+
+        if not self.ror_data:
+            self.logger.error("ROR data could not be loaded from the local JSON file")
+            return
+
         kwargs = {
             "repo_id": self.repository_id, "repo_url": self.url, "repo_set": self.set, "repo_name": self.name,
             "repo_type": "dryad",
@@ -58,7 +58,7 @@ class DryadRepository(HarvestRepository):
                 for record in records:
                     if '_links' in record and record['_links']:
                         item_identifier = record["identifier"]
-                        result = self.db.write_header(item_identifier, self.repository_id)
+                        self.db.write_header(item_identifier, self.repository_id)
                         item_count = item_count + 1
                         if (item_count % self.update_log_after_numitems == 0):
                             tdelta = time.time() - self.tstart + 0.1
@@ -102,7 +102,7 @@ class DryadRepository(HarvestRepository):
                         self.logger.error("ROR record {} missing country".format(author['affiliationROR']))
                         continue
                 except KeyError:
-                        self.logger.error("ROR ID {} does not exist".format(author["affiliationROR"]))
+                        self.logger.info("ROR ID {} does not exist".format(author["affiliationROR"]))
                         continue
             if not is_canadian:
                 return False
@@ -134,7 +134,7 @@ class DryadRepository(HarvestRepository):
         record["series"] = ""
         try:
             record["pub_date"] = dryad_record["publicationDate"]
-        except:
+        except Exception as e:
             record["pub_date"] = dryad_record["lastModificationDate"]
         record["description"] = dryad_record.get("abstract", "")
         record["rights"] = dryad_record["license"]
@@ -175,7 +175,7 @@ class DryadRepository(HarvestRepository):
             if self.dump_on_failure == True:
                 try:
                     print(dryad_record)
-                except:
+                except Exception as e:
                     pass
             # Touch the record so we do not keep requesting it on every run
             self.db.touch_record(record)
@@ -184,4 +184,15 @@ class DryadRepository(HarvestRepository):
                 return True
 
         return False
+
+    def update_stale_records(self, dbparams):
+        if not self.load_ror_data():
+            self.logger.error("ROR data could not be fetched from remote")
+            return
+
+        if not self.ror_data:
+            self.logger.error("ROR data could not be loaded from the local JSON file")
+            return
+
+        super().update_stale_records(dbparams)
 

@@ -40,7 +40,7 @@ def run_admin_server(with_tls=False):
     config = get_config_ini()
     # Initial setup magic
     app = Flask(__name__)
-    basic_auth = BasicAuth(app)
+    BasicAuth(app)
     db_type = str(config['db'].get('type'))
     if db_type == 'postgres':
         db_connection_str = '%s%s%s%s%s%s%s%s' % (

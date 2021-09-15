@@ -22,7 +22,7 @@ class ExporterDataverse(Exporter.Exporter):
         records_con = self.db.getConnection()
         with records_con:
             records_cursor = records_con.cursor()
-        records_sql = """SELECT recs.record_id, recs.item_url, recs.pub_date, recs.title, recs.title_fr, recs.item_url, recs.series, recs.repository_id, reps.repository_url, reps.repository_name, reps.repository_type
+        records_sql = """SELECT recs.record_id, recs.item_url, recs.pub_date, recs.title, recs.title_fr, recs.item_url, recs.series, recs.repository_id, recs.files_altered, reps.repository_url, reps.repository_name, reps.repository_type
             FROM records recs
             JOIN repositories reps on reps.repository_id = recs.repository_id
             WHERE recs.geodisy_harvested = 0 AND recs.deleted = 0 AND (recs.title <>''OR recs.title_fr <> '') LIMIT ?"""
@@ -30,7 +30,7 @@ class ExporterDataverse(Exporter.Exporter):
 
         records = []
         for row in records_cursor:
-            record = (dict(zip(['record_id','item_url','pub_date','title', 'title_fr','item_url','series','repository_id','repository_url', 'repository_name','repository_type'], row)))
+            record = (dict(zip(['record_id','item_url','pub_date','title', 'title_fr','item_url','series','repository_id', 'files_altered', 'repository_url', 'repository_name','repository_type'], row)))
             records.append(record)
         cur = self.db.getLambdaCursor()
         records_sql = """SELECT count(*)
@@ -95,7 +95,8 @@ class ExporterDataverse(Exporter.Exporter):
             "publicationDate": record["pub_date"],
             "license": self.get_license(record),
             "repo_base_url": record["repository_url"],
-            "publisher": record["repository_name"]
+            "publisher": record["repository_name"],
+            "files_altered": record["files_altered"]
         }
         geo = self.get_geospatial_metadata(record)
         files = self.get_files(record)
@@ -115,7 +116,7 @@ class ExporterDataverse(Exporter.Exporter):
         try:
             with open('data.txt', 'w') as outfile:
                 json.dump(data, outfile)
-        except:
+        except Exception as e:
             self.logger.error("Unable to write output data to data.txt for Geodisy")
 
     def get_citation_metadata_field(self, record):
@@ -142,7 +143,7 @@ class ExporterDataverse(Exporter.Exporter):
             vals = self._rows_to_list(cur)
             for val in vals:
                 retlist.append({"authorName": self.json_dv_dict("authorName", "false", "primitive", val)})
-        except:
+        except Exception as e:
             self.logger.error("Unable to get author metadata field for creating Dataverse JSON")
         return retlist
 
@@ -156,7 +157,7 @@ class ExporterDataverse(Exporter.Exporter):
             vals = self._rows_to_list(cur)
             for val in vals:
                 retlist.append({"dsDescriptionValue": self.json_dv_dict("dsDescriptionValue", "false", "primitive", val)})
-        except:
+        except Exception as e:
             self.logger.error("Unable to get description metadata field for creating Dataverse JSON")
         return retlist
 
@@ -169,7 +170,7 @@ class ExporterDataverse(Exporter.Exporter):
             vals = self._rows_to_list(cur)
             for val in vals:
                 retlist.append(val)
-        except:
+        except Exception as e:
             self.logger.error("Unable to get subject metadata field for creating Dataverse JSON")
         return retlist
 
@@ -182,7 +183,7 @@ class ExporterDataverse(Exporter.Exporter):
             vals = self._rows_to_list(cur)
             for val in vals:
                 retlist.append({"keywordValue": self.json_dv_dict("keywordValue", "false", "primitive", val)})
-        except:
+        except Exception as e:
             self.logger.error("Unable to get keyword metadata field for creating Dataverse JSON")
         return retlist
 
@@ -198,7 +199,7 @@ class ExporterDataverse(Exporter.Exporter):
             vals = self._rows_to_list(cur)
             if vals:
                 retval = vals[0]
-        except:
+        except Exception as e:
             self.logger.error("Unable to get license metadata field for creating Dataverse JSON")
         return retval                
 
@@ -249,7 +250,7 @@ class ExporterDataverse(Exporter.Exporter):
                 }
                 if country != "" or state != "" or city != "" or other != "":
                     geos_coverage.append(location)
-        except:
+        except Exception as e:
             self.logger.error("Unable to get geoplace metadata fields for record: {}".format(record["record_id"]))
         if not geos_coverage:
             return ""
@@ -272,7 +273,7 @@ class ExporterDataverse(Exporter.Exporter):
                     coords.append(self.get_bbox(val))
             if coords:
                 return coords
-        except:
+        except Exception as e:
             self.logger.error("Unable to get geobbox metadata fields for creating json for Geodisy")
             return ""
 
@@ -286,10 +287,6 @@ class ExporterDataverse(Exporter.Exporter):
 
     def get_files(self, record):
         files = []
-        # TODO We aren't processing ODS download links in Geodisy yet, remove the below check once ODS file processing
-        # has been implemented in Geodisy
-        if record.get("repository_type") == "opendatasoft":
-            return
         cur = self.db.getDictCursor()
         try:
             cur.execute(self.db._prep(
@@ -299,7 +296,7 @@ class ExporterDataverse(Exporter.Exporter):
                 files.append(self.get_file_info(val, record))
             if files:
                 return files
-        except:
+        except Exception as e:
             self.logger.error("Unable to get geo file metadata fields for creating json for Geodisy")
 
     def get_file_info(self, file_info, record):

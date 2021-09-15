@@ -17,8 +17,8 @@ class ExporterGmeta(Exporter.Exporter):
         deleted = []
 
         try:
-            lastrun_timestamp = self.db.get_setting("last_run_timestamp")
-        except:
+            lastrun_timestamp = int(self.db.get_setting("last_run_timestamp"))
+        except Exception as e:
             lastrun_timestamp = 0
 
         records_con = self.db.getConnection()
@@ -114,6 +114,21 @@ class ExporterGmeta(Exporter.Exporter):
                                                                         "city": geoplace["city"],
                                                                         "additional": geoplace["other"]})
 
+                # CRDC (FRDR records only)
+                litecur.execute(self.db._prep("""SELECT crdc.crdc_code, crdc.crdc_group_en, crdc.crdc_group_fr, 
+                                                    crdc.crdc_class_en, crdc.crdc_class_fr, crdc.crdc_field_en, crdc.crdc_field_fr
+                                                    FROM crdc JOIN records_x_crdc on records_x_crdc.crdc_id = crdc.crdc_id
+                                                    WHERE records_x_crdc.record_id=?"""),
+                                (record["record_id"],))
+                crdc_entries = litecur.fetchall()
+                if len(crdc_entries) > 0:
+                    record["crdc"] = []
+                    for crdc_entry in crdc_entries:
+                        record["crdc"].append({"crdc_code": crdc_entry["crdc_code"],
+                                               "crdc_group_en": crdc_entry["crdc_group_en"], "crdc_group_fr": crdc_entry["crdc_group_fr"],
+                                               "crdc_class_en": crdc_entry["crdc_class_en"], "crdc_class_fr": crdc_entry["crdc_class_fr"],
+                                               "crdc_field_en": crdc_entry["crdc_field_en"], "crdc_field_fr": crdc_entry["crdc_field_fr"] })
+
             with con:
                 litecur = self.db.getLambdaCursor()
 
@@ -182,10 +197,10 @@ class ExporterGmeta(Exporter.Exporter):
                 litecur.execute(self.db._prep(
                     "SELECT ds.namespace, dm.field_name, dm.field_value FROM domain_metadata dm, domain_schemas ds WHERE dm.schema_id=ds.schema_id and dm.record_id=?"),
                                 (record["record_id"],))
-                for row in litecur:
-                    domain_namespace = str(row["namespace"])
-                    field_name = str(row["field_name"])
-                    field_value = str(row["field_value"])
+                for row2 in litecur:
+                    domain_namespace = str(row2["namespace"])
+                    field_name = str(row2["field_name"])
+                    field_value = str(row2["field_value"])
                     if domain_namespace == "http://datacite.org/schema/kernel-4":
                         custom_label = "datacite_" + field_name
                     else:

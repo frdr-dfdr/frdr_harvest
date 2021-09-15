@@ -2,9 +2,7 @@ from harvester.HarvestRepository import HarvestRepository
 from harvester.rate_limited import rate_limited
 from owslib.csw import CatalogueServiceWeb
 import time
-import json
 import re
-import os.path
 import warnings
 
 # Disable FutureWarning from owslib - we do not use the properties listed in
@@ -20,7 +18,7 @@ class CSWRepository(HarvestRepository):
         super(CSWRepository, self).setRepoParams(repoParams)
         try:
             self.cswrepo = CatalogueServiceWeb(self.url)
-        except:
+        except Exception as e:
             self.cswrepo = None
         self.domain_metadata = []
 
@@ -46,11 +44,11 @@ class CSWRepository(HarvestRepository):
         while True:
             try:
                 self.cswrepo.getrecords2(startposition=self.cswrepo.results['nextrecord'])
-            except:
+            except Exception as e:
                 self.cswrepo.getrecords2()
 
             for rec in self.cswrepo.records:
-                result = self.db.write_header(self.cswrepo.records[rec].identifier, self.repository_id)
+                self.db.write_header(self.cswrepo.records[rec].identifier, self.repository_id)
                 item_count = item_count + 1
                 if (item_count % self.update_log_after_numitems == 0):
                     tdelta = time.time() - self.tstart + 0.1
@@ -83,6 +81,7 @@ class CSWRepository(HarvestRepository):
         record["series"] = ""
 
         if csw_record.bbox:
+            # Workaround to address issue in oswlib related to EPSG:4326 CRS code that flips coordinates
             if float(csw_record.bbox.minx) > float(csw_record.bbox.maxx):
                 # longitude values (minx and maxx) are switched by oswlib; switch them back
                 record["geobboxes"] = [{"southLat": csw_record.bbox.miny, "westLon": csw_record.bbox.maxx,
@@ -106,7 +105,7 @@ class CSWRepository(HarvestRepository):
 
         try:
             self.cswrepo.getrecordbyid(id=[record['local_identifier']])
-        except:
+        except Exception as e:
             self.logger.error("Unable to update record: {}".format(record['local_identifier']))
             self.db.delete_record(record)
             return False
@@ -122,17 +121,16 @@ class CSWRepository(HarvestRepository):
             if oai_record:
                 try:
                     self.db.write_record(oai_record, self)
-                except:
+                except Exception as e:
                     if self.dump_on_failure == True:
                         try:
                             print(csw_record)
-                        except:
+                        except Exception as e:
                             pass
-            return True
 
         else:
             # This record was deleted
             self.db.delete_record(record)
-            return True
+        
+        return True
 
-        return False

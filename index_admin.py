@@ -4,8 +4,6 @@ import json
 import logging
 import sys
 import logging.config
-import os
-import time
 import traceback
 import requests
 from harvester.DBInterface import DBInterface
@@ -125,7 +123,7 @@ def get_config_ini(config_file):
     try:
         c.read(config_file)
         return c
-    except:
+    except Exception as e:
         return None
 
 def main():
@@ -145,7 +143,7 @@ def main():
         with open(_tokens_filepath, 'r') as tokens_file:
             tokens = json.loads(tokens_file.read())
         index_config = get_index_config()
-        repos_config = get_repos_config()
+        #repos_config = get_repos_config()
         cl_parser.add_argument('-r', '--repository', help='Repository name (list in conf/repos.json)')
         cl_parser.add_argument('-p', '--purgefile', help='File name with list of items to delete. Not used with deleteall.')
         cl_parser.add_argument('-d', '--deleteall', help='Add this argument to delete all items from a repo. Not used with purgefile.',

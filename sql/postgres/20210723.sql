@@ -1,0 +1,1 @@
+alter table records add column files_altered INTEGER DEFAULT 1;

@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
-from flask import Flask, request, Response, got_request_exception
-from flask_restful import reqparse, abort, Api, Resource
+from flask import Flask, request, Response
+from flask_restful import abort, Api, Resource
 import configparser
 import logging
 import atexit
@@ -80,7 +80,7 @@ def get_config_ini(config_file):
     try:
         c.read(config_file)
         return c
-    except:
+    except Exception as e:
         return None
 
 
@@ -109,7 +109,7 @@ class RepoList(Resource):
 # Shows a single record
 class Record(Resource):
 
-    editable_fields = ["geodisy_harvested"]
+    editable_fields = ["geodisy_harvested", "files_altered"]
 
     def get(self, record_id):
         record_id = int(record_id)
@@ -140,7 +140,8 @@ class Record(Resource):
                     "series": record["series"],
                     "item_url": record["item_url"],
                     "upstream_modified_timestamp": int(record["upstream_modified_timestamp"]),
-                    "geodisy_harvested": int(record["geodisy_harvested"])
+                    "geodisy_harvested": int(record["geodisy_harvested"]),
+                    "files_altered": int(record["files_altered"])
                 }
             return this_record
 
