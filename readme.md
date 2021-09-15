@@ -20,7 +20,7 @@ This is a repository crawler which outputs gmeta.json files for indexing by Glob
 Configuration is split into two files:
 
 - The first controls the operation of the indexer, and is located in conf/harvester.conf.
-- The list of repositories to be crawled is in conf/repos.json, structured as shown below. For documentation of repos.json properties, see: [frdr_harvest: repos.json properties](FIXME ADD LINK).
+- The list of repositories to be crawled is in conf/repos.json, structured as shown below. For documentation of repos.json properties, see: [repos\_json\_properties.md](https://github.com/frdr-dfdr/frdr_harvest/blob/master/admin/repos_json_properties.md).
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ json
 {
