@@ -1151,7 +1151,7 @@ class DBInterface:
                     cur.execute(self._prep(
                         "INSERT INTO records (title, title_fr, pub_date, series, modified_timestamp, local_identifier"
                         ", item_url, repository_id, upstream_modified_timestamp, files_size, files_altered) VALUES(?,?,?,?,?,?,?,?,?,?,?)"),
-                        ("", "", "", "", 0, local_identifier, "", repo_id, time.time()))
+                        ("", "", "", "", 0, local_identifier, "", repo_id, time.time(), 0, 1))
                 except self.dblayer.IntegrityError as e:
                     self.logger.error("Error creating record header: {}".format(e))
 
