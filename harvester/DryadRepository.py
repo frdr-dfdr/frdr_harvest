@@ -46,7 +46,8 @@ class DryadRepository(HarvestRepository):
             # Initial API call
             url = self.url + "/search/"
             # Check for records updated in the past 30 days
-            querystring = {"per_page": str(100), "modifiedSince": datetime.strftime(datetime.fromtimestamp(self.last_crawl - 60*60*24*7), '%Y-%m-%dT%H:%M:%SZ')}
+            mod_since = self.last_crawl - 60*60*24*7 if self.last_crawl - 60*60*24*7 >= 0 else 0
+            querystring = {"per_page": str(100), "modifiedSince": datetime.strftime(datetime.fromtimestamp(mod_since), '%Y-%m-%dT%H:%M:%SZ')}
             r = requests.request("GET", url, headers=self.headers, params=querystring)
             response = r.json()
             records = response['_embedded']['stash:datasets']
