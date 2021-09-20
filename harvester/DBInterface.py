@@ -521,7 +521,7 @@ class DBInterface:
                         deleted, local_identifier, item_url, repository_id, upstream_modified_timestamp, files_size, files_altered)
                         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING record_id"""),
                         (rec["title"], rec["title_fr"], rec["pub_date"],  rec["series"], time.time(), source_url, 0,
-                         rec["identifier"], rec["item_url"], repo_id, time.time(), rec["files_size"], rec["files_altered"]))
+                         rec["identifier"], rec["item_url"], repo_id, time.time(), rec.get("files_size", 0), rec.get("files_altered", 1)))
                     returnvalue = int(cur.fetchone()['record_id'])
                 if self.dbtype == "sqlite":
                     cur.execute(self._prep(
@@ -529,7 +529,7 @@ class DBInterface:
                         deleted, local_identifier, item_url, repository_id, upstream_modified_timestamp, files_size, files_altered)
                         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)"""),
                         (rec["title"], rec["title_fr"], rec["pub_date"], rec["series"], time.time(), source_url, 0,
-                         rec["identifier"], rec["item_url"], repo_id, time.time(), rec["files_size"], rec["files_altered"]))
+                         rec["identifier"], rec["item_url"], repo_id, time.time(), rec.get("files_size", 0), rec.get("files_altered", 1)))
                     returnvalue = int(cur.lastrowid)
             except self.dblayer.IntegrityError as e:
                 self.logger.error("Record insertion problem: {}".format(e))
@@ -580,7 +580,7 @@ class DBInterface:
                 elif existing_record["local_identifier"] != record["identifier"]:
                     modified_upstream = True
                 try:
-                    if existing_record["files_size"] != record["files_size"]:
+                    if existing_record["files_size"] != record.get("files_size"):
                         record["files_altered"] = 1
                         modified_upstream = True
                 except AttributeError:
@@ -595,7 +595,7 @@ class DBInterface:
                     deleted=?, local_identifier=?, item_url=?, files_size=?, files_altered=?
                     WHERE record_id = ?"""),
                     (record["title"], record["title_fr"], record["pub_date"], record["series"], time.time(),
-                     source_url, 0, record["identifier"], record["item_url"], record["files_size"], record["files_altered"], record["record_id"]))
+                     source_url, 0, record["identifier"], record["item_url"], record.get("files_size", 0), record.get("files_altered",1), record["record_id"]))
 
         if record["record_id"] is None:
             return None
@@ -1118,7 +1118,7 @@ class DBInterface:
             cur = self.getDictCursor()
             cur.execute(self._prep("""SELECT recs.record_id, recs.title, recs.pub_date, recs.series
                 , recs.modified_timestamp, recs.local_identifier, recs.item_url
-                , repos.repository_id, repos.repository_type, recs.geodisy_harvested
+                , repos.repository_id, repos.repository_type, recs.geodisy_harvested, recs.files_size, recs.files_altered
                 FROM records recs, repositories repos
                 where recs.repository_id = repos.repository_id and recs.modified_timestamp < ?
                 and repos.repository_id = ? and recs.deleted = 0
@@ -1151,7 +1151,7 @@ class DBInterface:
                     cur.execute(self._prep(
                         "INSERT INTO records (title, title_fr, pub_date, series, modified_timestamp, local_identifier"
                         ", item_url, repository_id, upstream_modified_timestamp, files_size, files_altered) VALUES(?,?,?,?,?,?,?,?,?,?,?)"),
-                        ("", "", "", "", 0, local_identifier, "", repo_id, time.time()))
+                        ("", "", "", "", 0, local_identifier, "", repo_id, time.time(), 0,1))
                 except self.dblayer.IntegrityError as e:
                     self.logger.error("Error creating record header: {}".format(e))
 
