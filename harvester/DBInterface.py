@@ -316,8 +316,12 @@ class DBInterface:
         return self.delete_row_generic(crosstable, "record_id", record_id, extrawhere)
 
     def delete_one_related_record(self, crosstable, column_value, record_id, extrawhere=""):
-        columnname = self.get_table_value_column(crosstable)
-        self.delete_row_generic(crosstable, columnname, column_value, "and record_id="+str(record_id) + " " + extrawhere)
+        try:
+            columnname = self.get_table_value_column(crosstable)
+            self.delete_row_generic(crosstable, columnname, column_value, "and record_id="+str(record_id) + " " + extrawhere)
+        except Exception as e:
+            self.logger.error("delete_one_related_record() failed".format(e))
+            raise e
 
     def delete_row_generic(self, tablename, columnname, column_value, extrawhere=""):
         con = self.getConnection()
@@ -327,7 +331,8 @@ class DBInterface:
                 sqlstring = "DELETE from {} where {}=? {}".format(tablename, columnname, extrawhere)
                 cur.execute(self._prep(sqlstring), (column_value,))
             except Exception as e:
-                return False
+                self.logger.error("delete_row_generic() failed with sqlstring \"{}\": {}".format(sqlstring, e))
+                raise e
         return True
 
     def update_row_generic(self, tablename, row_id, updates, extrawhere=""):
