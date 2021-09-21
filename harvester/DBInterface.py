@@ -649,7 +649,7 @@ class DBInterface:
                         val_rec_id = self.insert_related_record(valtable, record["record_id"], **extras)
                     else: # ["affiliation", "rights", "tags", "tags_fr", "subject", "subject_fr", "description", "description_fr", "geoplaces"]:
                         val_rec_id = self.insert_related_record(valtable, value, **extras)
-                    if val_fieldname != "geopoints": # Remove when Geodisy starts processing points
+                    if val_fieldname != "geopoints": # Remove conditional when Geodisy starts processing points
                         modified_upstream = True
                 if val_rec_id is not None:
                     new_val_recs_ids.append(val_rec_id)
@@ -665,10 +665,13 @@ class DBInterface:
                 if eid not in new_val_recs_ids:
                     modified_upstream = True
                     if crosstable != valtable:
-                        self.delete_one_related_record(crosstable, eid, record["record_id"], extrawhere)
+                        if val_fieldname in ["tags", "tags_fr", "subject", "subject_fr"]:
+                            self.delete_one_related_record(crosstable, eid, record["record_id"])
+                        else:
+                            self.delete_one_related_record(crosstable, eid, record["record_id"], extrawhere) # FIXME not working for tags, tags_fr, doesn't need extrawhere
                     else:
                         self.delete_row_generic(valtable, val_idcol, eid)
-        elif existing_val_recs: # delete metadata if the field is no longer present in incoming record
+        elif existing_val_recs: # delete metadata if the field is no longer present at all in incoming record
             modified_upstream = True
             if crosstable != valtable:
                 if val_fieldname in ["subject", "subjects_fr", "tags", "tags_fr"]:
