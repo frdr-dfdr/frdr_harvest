@@ -660,8 +660,8 @@ class DBInterface:
                                                          **extras)
                             else:
                                 self.insert_cross_record(crosstable, valtable, val_rec_id, record["record_id"])
-                        modified_upstream = True
-            for eid in existing_val_recs_ids:
+                            modified_upstream = True
+            for eid in existing_val_recs_ids: # delete value if no longer present in incoming record values
                 if eid not in new_val_recs_ids:
                     modified_upstream = True
                     if crosstable != valtable:
