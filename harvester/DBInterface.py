@@ -295,7 +295,7 @@ class DBInterface:
                     self.delete_all_related_records(tablename, record['record_id'])
             except Exception as e:
                 self.logger.error(
-                    "Unable to delete related table rows for record {}".format(record['local_identifier']))
+                    "delete_record() failed for record {}: {}".format(record['local_identifier'], e))
                 return False
 
         self.logger.debug("Marked as deleted: record {}".format(record['local_identifier']))
@@ -320,7 +320,7 @@ class DBInterface:
             columnname = self.get_table_value_column(crosstable)
             self.delete_row_generic(crosstable, columnname, column_value, "and record_id="+str(record_id) + " " + extrawhere)
         except Exception as e:
-            self.logger.error("delete_one_related_record() failed".format(e))
+            self.logger.error("delete_one_related_record() failed: {}".format(e))
             raise e
 
     def delete_row_generic(self, tablename, columnname, column_value, extrawhere=""):
