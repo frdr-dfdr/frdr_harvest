@@ -675,7 +675,7 @@ class DBInterface:
         elif existing_val_recs: # delete metadata if the field is no longer present at all in incoming record
             modified_upstream = True
             if crosstable != valtable:
-                if val_fieldname in ["subject", "subjects_fr", "tags", "tags_fr"]:
+                if val_fieldname in ["subject", "subject_fr", "tags", "tags_fr"]:
                     for eid in existing_val_recs_ids:
                         self.delete_one_related_record(crosstable, eid, record["record_id"])
                 else:
