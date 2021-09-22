@@ -142,6 +142,8 @@ class HarvestRepository(object):
 
     def update_stale_records(self, dbparams):
         """ This method will be called by a child class only, so that it uses its own _update_record() method """
+        # FIXME For repository types without update_record (e.g. ArcGIS, MarkLogic),
+        #  this produces misleading print statements and possibly loops through records unnecesarily
         if self.enabled != True:
             return True
         if self.db is None:
