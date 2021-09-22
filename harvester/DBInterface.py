@@ -241,7 +241,7 @@ class DBInterface:
     def write_ror_affiliation_match(self, affiliation_string, ror_id, score, country):
         ror_affiliation_match_id = self.get_single_record_id("ror_affiliation_matches", affiliation_string)
         if ror_affiliation_match_id is not None:
-            self.delete_row_generic("ror_affiliation_matches", affiliation_string, ror_affiliation_match_id)
+            self.delete_rows("ror_affiliation_matches", affiliation_string, ror_affiliation_match_id)
         extras = {"ror_id": ror_id, "score": score, "country": country, "updated_timestamp": int(time.time())}
         self.insert_related_record("ror_affiliation_matches", affiliation_string, **extras)
         return self.get_ror_from_affiliation(affiliation_string)
@@ -289,10 +289,11 @@ class DBInterface:
                 return False
 
             try:
-                for tablename in ["records_x_access", "records_x_creators", "records_x_publishers", "records_x_rights",
-                                  "records_x_subjects", "records_x_affiliations", "records_x_tags", "descriptions",
-                                  "records_x_geoplace", "records_x_crdc", "geopoint", "geobbox", "domain_metadata"]:
-                    self.delete_all_related_records(tablename, record['record_id'])
+                for tablename in [
+                    "records_x_access", "records_x_affiliations", "records_x_crdc", "records_x_creators",
+                    "descriptions", "domain_metadata", "geobbox", "geofile", "records_x_geoplace", "geopoint", "geospatial",
+                    "records_x_publishers", "records_x_rights", "records_x_subjects", "records_x_tags" ]:
+                    self.delete_rows(tablename, "record_id", record['record_id'])
             except Exception as e:
                 self.logger.error(
                     "delete_record() failed for record {}: {}".format(record['local_identifier'], e))
@@ -312,18 +313,7 @@ class DBInterface:
                 return False
         return True
 
-    def delete_all_related_records(self, crosstable, record_id, extrawhere=""):
-        return self.delete_row_generic(crosstable, "record_id", record_id, extrawhere)
-
-    def delete_one_related_record(self, crosstable, column_value, record_id, extrawhere=""):
-        try:
-            columnname = self.get_table_value_column(crosstable)
-            self.delete_row_generic(crosstable, columnname, column_value, "and record_id="+str(record_id) + " " + extrawhere)
-        except Exception as e:
-            self.logger.error("delete_one_related_record() failed: {}".format(e))
-            raise e
-
-    def delete_row_generic(self, tablename, columnname, column_value, extrawhere=""):
+    def delete_rows(self, tablename, columnname, column_value, extrawhere=""):
         con = self.getConnection()
         with con:
             cur = self.getRowCursor()
@@ -331,7 +321,7 @@ class DBInterface:
                 sqlstring = "DELETE from {} where {}=? {}".format(tablename, columnname, extrawhere)
                 cur.execute(self._prep(sqlstring), (column_value,))
             except Exception as e:
-                self.logger.error("delete_row_generic() failed with sqlstring \"{}\": {}".format(sqlstring, e))
+                self.logger.error("delete_rows() failed with sqlstring \"{}\": {}".format(sqlstring, e))
                 raise e
         return True
 
@@ -359,6 +349,20 @@ class DBInterface:
         if tablename in self.tabledict and "valcol" in self.tabledict[tablename]:
             return str(self.tabledict[tablename]["valcol"])
         raise ValueError("tables.json missing valcol definition for {}".format(tablename))
+
+    def get_table_extracolumn(self, tablename):
+        if tablename in self.tabledict and "extracolumn" in self.tabledict[tablename]:
+            if self.tabledict[tablename]["extracolumn"] != "":
+                return str(self.tabledict[tablename]["extracolumn"])
+            return None
+        raise ValueError("tables.json missing extra definition for {}".format(tablename))
+
+    def get_table_crosstable(self, tablename):
+        if tablename in self.tabledict and "crosstable" in self.tabledict[tablename]:
+            if self.tabledict[tablename]["crosstable"] != "":
+                return str(self.tabledict[tablename]["crosstable"])
+            return None
+        raise ValueError("tables.json missing cross definition for {}".format(tablename))
 
     def insert_related_record(self, tablename, val, **kwargs):
         valcolumn = self.get_table_value_column(tablename)
@@ -534,19 +538,21 @@ class DBInterface:
 
         return returnvalue
 
-    def update_related_metadata(self, record, crosstable, valtable, val_fieldname, val_idcol, extrawhere="", extras={}):
+    def update_related_metadata(self, record, val_table, val_fieldname, extras={}):
+        extrawhere = ""
         modified_upstream = False
-        if val_fieldname in ["tags", "subject"]:
+        val_idcol = self.get_table_id_column(val_table)
+        crosstable = self.get_table_crosstable(val_table)
+        extracolumn = self.get_table_extracolumn(val_table)
+        if extracolumn:
+            extrawhere = "and " + extracolumn + "='" + str(extras[extracolumn]) + "'"
+
+        if crosstable:
             existing_val_recs = self.get_records_raw_query("""select v.{} from {} v
                                join {} x on x.{} = v.{}
-                               where x.record_id = {} and v.language = 'en' """.format(val_idcol, valtable, crosstable, val_idcol, val_idcol, record["record_id"]))
-        elif val_fieldname in ["tags_fr", "subject_fr"]:
-            existing_val_recs = self.get_records_raw_query("""select v.{} from {} v
-                               join {} x on x.{} = v.{}
-                               where x.record_id = {} and v.language = 'fr' """.format(val_idcol, valtable, crosstable, val_idcol, val_idcol, record["record_id"]))
+                               where x.record_id = {} {} """.format(val_idcol, val_table, crosstable, val_idcol, val_idcol, record["record_id"], extrawhere))
         else:
-            existing_val_recs = self.get_multiple_records(crosstable, val_idcol, "record_id",
-                                                      record["record_id"], extrawhere)
+            existing_val_recs = self.get_multiple_records(val_table, val_idcol, "record_id", record["record_id"], extrawhere)
         existing_val_recs_ids = [e[val_idcol] for e in existing_val_recs]
         if val_fieldname in record:
             if not isinstance(record[val_fieldname], list):
@@ -631,58 +637,52 @@ class DBInterface:
 
                     # get existing value record if it exists
                     if val_fieldname in ["affiliation", "description", "description_fr", "geoplaces"]:
-                        val_rec_id = self.get_single_record_id(valtable, value, **extras)
+                        val_rec_id = self.get_single_record_id(val_table, value, **extras)
                     elif val_fieldname in ["tags", "tags_fr", "subject", "subject_fr"]:
-                        val_rec_id = self.get_single_record_id(valtable, value, extrawhere)
+                        val_rec_id = self.get_single_record_id(val_table, value, extrawhere)
                     elif val_fieldname in ["geopoints", "geobboxes", "geofiles"]:
-                        val_rec_id = self.get_single_record_id(valtable, record["record_id"], **extras)
+                        val_rec_id = self.get_single_record_id(val_table, record["record_id"], **extras)
                     else: # ["creator", "contributor", "publisher", "rights"]
-                        val_rec_id = self.get_single_record_id(valtable, value)
+                        val_rec_id = self.get_single_record_id(val_table, value)
 
-                    # write valtable record and crosstable records if needed
+                    # write val_table record and crosstable records if needed
                     if val_rec_id is None:
                         if val_fieldname in ["description", "description_fr"]:
                             extras["description"] = original_value
 
                         if val_fieldname in ["creator", "contributor", "publisher"]:
-                            val_rec_id = self.insert_related_record(valtable, value)
+                            val_rec_id = self.insert_related_record(val_table, value)
                         elif val_fieldname in ["geopoints", "geobboxes", "geofiles"]:
-                            val_rec_id = self.insert_related_record(valtable, record["record_id"], **extras)
+                            val_rec_id = self.insert_related_record(val_table, record["record_id"], **extras)
                         else: # ["affiliation", "rights", "tags", "tags_fr", "subject", "subject_fr", "description", "description_fr", "geoplaces"]:
-                            val_rec_id = self.insert_related_record(valtable, value, **extras)
+                            val_rec_id = self.insert_related_record(val_table, value, **extras)
                         if val_fieldname != "geopoints": # Remove conditional when Geodisy starts processing points
                             modified_upstream = True
                     if val_rec_id is not None:
                         new_val_recs_ids.append(val_rec_id)
-                        if crosstable != valtable:
+                        if crosstable:
                             if val_rec_id not in existing_val_recs_ids:
                                 if val_fieldname in ["creator", "contributor"]:
-                                    self.insert_cross_record(crosstable, valtable, val_rec_id, record["record_id"],
-                                                             **extras)
+                                    self.insert_cross_record(crosstable, val_table, val_rec_id, record["record_id"], **extras)
                                 else:
-                                    self.insert_cross_record(crosstable, valtable, val_rec_id, record["record_id"])
+                                    self.insert_cross_record(crosstable, val_table, val_rec_id, record["record_id"])
                                 modified_upstream = True
             for eid in existing_val_recs_ids: # delete value if no longer present in incoming record values
                 if eid not in new_val_recs_ids:
                     modified_upstream = True
-                    if crosstable != valtable:
-                        if val_fieldname in ["tags", "tags_fr", "subject", "subject_fr"]:
-                            self.delete_one_related_record(crosstable, eid, record["record_id"])
-                        else:
-                            self.delete_one_related_record(crosstable, eid, record["record_id"], extrawhere)
+                    if crosstable:
+                        # Delete the cross table row but leave the related value table row, it may be used elsewhere
+                        deletewhere = "and " + val_idcol + "='" + str(eid) + "'"
+                        self.delete_rows(crosstable, "record_id", str(record_id), deletewhere )
                     else:
-                        self.delete_row_generic(valtable, val_idcol, eid)
+                        self.delete_rows(val_table, val_idcol, eid)
         elif existing_val_recs: # delete metadata if the field is no longer present at all in incoming record
             modified_upstream = True
-            if crosstable != valtable:
-                if val_fieldname in ["subject", "subject_fr", "tags", "tags_fr"]:
-                    for eid in existing_val_recs_ids:
-                        self.delete_one_related_record(crosstable, eid, record["record_id"])
-                else:
-                    self.delete_all_related_records(crosstable, record["record_id"], extrawhere)
+            if crosstable:
+                self.delete_rows(crosstable, "record_id", record["record_id"])
             else:
                 for eid in existing_val_recs_ids:
-                    self.delete_row_generic(valtable, val_idcol, eid)
+                    self.delete_rows(val_table, val_idcol, eid)
         return modified_upstream
 
     def write_record(self, record, repo):
@@ -745,73 +745,72 @@ class DBInterface:
             return None
 
         # creators
-        if self.update_related_metadata(record, "records_x_creators", "creators", "creator", "creator_id", "and is_contributor=0", {"is_contributor": 0}):
+        if self.update_related_metadata(record, "creators", "creator", {"is_contributor": 0}):
             modified_upstream = True
 
         # contributors
-        if self.update_related_metadata(record, "records_x_creators", "creators", "contributor", "creator_id", "and is_contributor=1", {"is_contributor": 1}):
+        if self.update_related_metadata(record, "creators", "contributor", {"is_contributor": 1}):
             modified_upstream = True
 
         # publishers
-        if self.update_related_metadata(record, "records_x_publishers", "publishers", "publisher", "publisher_id"):
+        if self.update_related_metadata(record, "publishers", "publisher"):
             modified_upstream = True
 
         # affiliations
-        if self.update_related_metadata(record, "records_x_affiliations", "affiliations", "affiliation", "affiliation_id"):
+        if self.update_related_metadata(record, "affiliations", "affiliation"):
             modified_upstream = True
 
         # access
-        if self.update_related_metadata(record, "records_x_access", "access", "access", "access_id"):
+        if self.update_related_metadata(record, "access", "access"):
             modified_upstream = True
 
         # rights
-        if self.update_related_metadata(record, "records_x_rights", "rights", "rights", "rights_id"):
+        if self.update_related_metadata(record, "rights", "rights"):
             modified_upstream = True
 
         # tags - en
-        if self.update_related_metadata(record, "records_x_tags", "tags", "tags", "tag_id", "and language='en'", {"language": "en"}):
+        if self.update_related_metadata(record, "tags", "tags", {"language": "en"}):
             modified_upstream = True
 
         # tags - fr
-        if self.update_related_metadata(record, "records_x_tags", "tags", "tags_fr", "tag_id", "and language='fr'", {"language": "fr"}):
+        if self.update_related_metadata(record, "tags", "tags_fr", {"language": "fr"}):
             modified_upstream = True
 
         # subjects - en
-        if self.update_related_metadata(record, "records_x_subjects", "subjects", "subject", "subject_id", "and language='en'", {"language": "en"}):
+        if self.update_related_metadata(record, "subjects", "subject", {"language": "en"}):
             modified_upstream = True
 
         # subjects - fr
-        if self.update_related_metadata(record, "records_x_subjects", "subjects", "subject_fr", "subject_id", "and language='fr'", {"language": "fr"}):
+        if self.update_related_metadata(record, "subjects", "subject_fr", {"language": "fr"}):
             modified_upstream = True
 
         # geoplaces
-        if self.update_related_metadata(record, "records_x_geoplace", "geoplace", "geoplaces", "geoplace_id"):
+        if self.update_related_metadata(record, "geoplace", "geoplaces"):
             modified_upstream = True
 
         # descriptions - en
-        if self.update_related_metadata(record, "descriptions", "descriptions", "description", "description_id", "and language='en'"):
+        if self.update_related_metadata(record, "descriptions", "description", {"language": "en"}):
             modified_upstream = True
 
         # descriptions - fr
-        if self.update_related_metadata(record, "descriptions", "descriptions", "description_fr", "description_id", "and language='fr'"):
+        if self.update_related_metadata(record, "descriptions", "description_fr", {"language": "fr"}):
             modified_upstream = True
 
         # geobboxes
-        if self.update_related_metadata(record, "geobbox", "geobbox", "geobboxes", "geobbox_id"):
+        if self.update_related_metadata(record, "geobbox", "geobboxes"):
             modified_upstream = True
 
         # geopoints
-        if self.update_related_metadata(record, "geopoint", "geopoint", "geopoints", "geopoint_id"):
+        if self.update_related_metadata(record, "geopoint", "geopoints"):
             modified_upstream = True
 
         # geofiles
-        if self.update_related_metadata(record, "geofile", "geofile", "geofiles", "geofile_id"):
+        if self.update_related_metadata(record, "geofile", "geofiles"):
             modified_upstream = True
 
         # crdc
         if "crdc" in record:
-            existing_crdc_recs = self.get_multiple_records("records_x_crdc", "*", "record_id",
-                                                               record["record_id"])
+            existing_crdc_recs = self.get_multiple_records("records_x_crdc", "*", "record_id", record["record_id"])
             existing_crdc_ids = [e["crdc_id"] for e in existing_crdc_recs]
             new_crdc_ids = []
             crdc_key_list = ["crdc_code", "crdc_group_en", "crdc_group_fr", "crdc_class_en", "crdc_class_fr", "crdc_field_en", "crdc_field_fr"]
@@ -847,7 +846,7 @@ class DBInterface:
                         self.get_multiple_records("records_x_crdc", "records_x_crdc_id", "record_id",
                                                   record["record_id"], " and crdc_id='"
                                                   + str(eid) + "'")[0]["records_x_crdc_id"]
-                    self.delete_row_generic("records_x_crdc", "records_x_crdc_id", records_x_crdc_id)
+                    self.delete_rows("records_x_crdc", "records_x_crdc_id", records_x_crdc_id)
                     modified_upstream = True
 
         # domain metadata
@@ -875,11 +874,11 @@ class DBInterface:
                         new_metadata_ids.append(metadata_id)
             for eid in existing_metadata_ids:
                 if eid not in new_metadata_ids:
-                    self.delete_row_generic("domain_metadata", "metadata_id", eid)
+                    self.delete_rows("domain_metadata", "metadata_id", eid)
                     modified_upstream = True
         elif existing_metadata_recs:
             for eid in existing_metadata_ids:
-                self.delete_row_generic("domain_metadata", "metadata_id", eid)
+                self.delete_rows("domain_metadata", "metadata_id", eid)
                 modified_upstream = True
 
         if modified_upstream:
