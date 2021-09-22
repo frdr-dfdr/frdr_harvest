@@ -673,7 +673,7 @@ class DBInterface:
                     if crosstable:
                         # Delete the cross table row but leave the related value table row, it may be used elsewhere
                         deletewhere = "and " + val_idcol + "='" + str(eid) + "'"
-                        self.delete_rows(crosstable, "record_id", str(record_id), deletewhere )
+                        self.delete_rows(crosstable, "record_id", str(record["record_id"]), deletewhere )
                     else:
                         self.delete_rows(val_table, val_idcol, eid)
         elif existing_val_recs: # delete metadata if the field is no longer present at all in incoming record
