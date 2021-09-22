@@ -288,16 +288,16 @@ class DBInterface:
                 self.logger.error("Unable to mark as deleted record {}".format(record['local_identifier']))
                 return False
 
-            try:
-                for tablename in [
-                    "records_x_access", "records_x_affiliations", "records_x_crdc", "records_x_creators",
-                    "descriptions", "domain_metadata", "geobbox", "geofile", "records_x_geoplace", "geopoint", "geospatial",
-                    "records_x_publishers", "records_x_rights", "records_x_subjects", "records_x_tags" ]:
-                    self.delete_rows(tablename, "record_id", record['record_id'])
-            except Exception as e:
-                self.logger.error(
-                    "delete_record() failed for record {}: {}".format(record['local_identifier'], e))
-                return False
+        try:
+            for tablename in [
+                "records_x_access", "records_x_affiliations", "records_x_crdc", "records_x_creators",
+                "descriptions", "domain_metadata", "geobbox", "geofile", "records_x_geoplace", "geopoint", "geospatial",
+                "records_x_publishers", "records_x_rights", "records_x_subjects", "records_x_tags" ]:
+                self.delete_rows(tablename, "record_id", record['record_id'])
+        except Exception as e:
+            self.logger.error(
+                "delete_record() failed for record {}: {}".format(record['local_identifier'], e))
+            return False
 
         self.logger.debug("Marked as deleted: record {}".format(record['local_identifier']))
         return True
