@@ -194,7 +194,7 @@ class OAIRepository(HarvestRepository):
                 break
 
             except Exception as e:
-                self.logger.debug("Exception while working on item {}: {}".format(item_count, e))
+                self.logger.debug("Exception while working on item {}: {} {}".format(item_count, type(e).__name__, e))
 
         self.logger.info("Processed {} items in feed".format(item_count))
 
@@ -564,8 +564,8 @@ class OAIRepository(HarvestRepository):
             return True
 
         except Exception as e:
-            self.logger.error("Updating item failed (repo_id:{}, oai_id:{}): {}".format(self.repository_id,
-                                                                                        record["local_identifier"], e))
+            self.logger.error("Updating item failed (repo_id:{}, oai_id:{}): {} {}".format(self.repository_id,
+                                                                                        record["local_identifier"], type(e).__name__, e))
             if self.dump_on_failure == True:
                 try:
                     print(single_record.metadata)
