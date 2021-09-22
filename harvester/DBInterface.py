@@ -851,10 +851,9 @@ class DBInterface:
                     modified_upstream = True
 
         # domain metadata
+        existing_metadata_recs = self.get_multiple_records("domain_metadata", "*", "record_id", record["record_id"])
+        existing_metadata_ids = [e["metadata_id"] for e in existing_metadata_recs]
         if len(domain_metadata) > 0:
-            existing_metadata_recs = self.get_multiple_records("domain_metadata", "*", "record_id",
-                                                              record["record_id"])
-            existing_metadata_ids = [e["metadata_id"] for e in existing_metadata_recs]
             new_metadata_ids = []
             for field_uri in domain_metadata:
                 field_pieces = field_uri.split("#")
@@ -878,6 +877,10 @@ class DBInterface:
                 if eid not in new_metadata_ids:
                     self.delete_row_generic("domain_metadata", "metadata_id", eid)
                     modified_upstream = True
+        elif existing_metadata_recs:
+            for eid in existing_metadata_ids:
+                self.delete_row_generic("domain_metadata", "metadata_id", eid)
+                modified_upstream = True
 
         if modified_upstream:
             self.update_record_upstream_modified(record)
