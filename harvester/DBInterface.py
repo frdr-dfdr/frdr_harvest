@@ -580,7 +580,7 @@ class DBInterface:
                 elif existing_record["local_identifier"] != record["identifier"]:
                     modified_upstream = True
                 try:
-                    if existing_record["files_size"] != record.get("files_size"):
+                    if existing_record["files_size"] != record.get("files_size",0):
                         record["files_altered"] = 1
                         modified_upstream = True
                 except AttributeError:
