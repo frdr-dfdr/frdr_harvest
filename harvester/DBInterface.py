@@ -288,7 +288,7 @@ class DBInterface:
                 self.logger.error("Unable to mark as deleted record {}".format(record['local_identifier']))
                 return False
 
-            try: # TODO test
+            try:
                 for tablename in ["records_x_access", "records_x_creators", "records_x_publishers", "records_x_rights",
                                   "records_x_subjects", "records_x_affiliations", "records_x_tags", "descriptions",
                                   "records_x_geoplace", "records_x_crdc", "geopoint", "geobbox", "domain_metadata"]:
@@ -669,7 +669,7 @@ class DBInterface:
                         if val_fieldname in ["tags", "tags_fr", "subject", "subject_fr"]:
                             self.delete_one_related_record(crosstable, eid, record["record_id"])
                         else:
-                            self.delete_one_related_record(crosstable, eid, record["record_id"], extrawhere) # FIXME not working for tags, tags_fr, doesn't need extrawhere
+                            self.delete_one_related_record(crosstable, eid, record["record_id"], extrawhere)
                     else:
                         self.delete_row_generic(valtable, val_idcol, eid)
         elif existing_val_recs: # delete metadata if the field is no longer present at all in incoming record
@@ -678,7 +678,7 @@ class DBInterface:
                 if val_fieldname in ["subject", "subjects_fr", "tags", "tags_fr"]:
                     for eid in existing_val_recs_ids:
                         self.delete_one_related_record(crosstable, eid, record["record_id"])
-                else: # TODO test for "description", "description_fr"
+                else:
                     self.delete_all_related_records(crosstable, record["record_id"], extrawhere)
             else:
                 for eid in existing_val_recs_ids:
