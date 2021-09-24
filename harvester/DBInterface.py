@@ -565,28 +565,26 @@ class DBInterface:
             records = self.get_multiple_records("records", "*", "record_id", record["record_id"])
             if len(records) == 1:
                 existing_record = records[0]
-                if existing_record["title"] != record["title"]:
-                    modified_upstream = True
-                elif existing_record["title_fr"] != record["title_fr"]:
-                    modified_upstream = True
-                elif existing_record["pub_date"] != record["pub_date"]:
-                    modified_upstream = True
-                elif existing_record["series"] != record["series"]:
-                    modified_upstream = True
-                elif existing_record["source_url"] is None and existing_record["source_url"] != source_url:
-                    modified_upstream = True
-                elif existing_record["item_url"] != record["item_url"]:
-                    modified_upstream = True
-                elif existing_record["local_identifier"] != record["identifier"]:
-                    modified_upstream = True
                 try:
+                    if existing_record["title"] != record["title"]:
+                        modified_upstream = True
+                    elif existing_record["title_fr"] != record["title_fr"]:
+                        modified_upstream = True
+                    elif existing_record["pub_date"] != record["pub_date"]:
+                        modified_upstream = True
+                    elif existing_record["series"] != record["series"]:
+                        modified_upstream = True
+                    elif existing_record["source_url"] is None and existing_record["source_url"] != source_url:
+                        modified_upstream = True
+                    elif existing_record["item_url"] != record["item_url"]:
+                        modified_upstream = True
+                    elif existing_record["local_identifier"] != record["identifier"]:
+                        modified_upstream = True
                     if existing_record["files_size"] != record.get("files_size",0):
                         record["files_altered"] = 1
                         modified_upstream = True
                 except AttributeError:
-                    # probably not a valid OAI record
-                    # Islandora throws this for non-object directories
-                    self.logger.debug("AttributeError trying to access files_size")
+                    self.logger.debug("AttributeError trying to access field when checking if record has changed since Geodisy last ran")
                     raise AssertionError
             with con:
                 cur = self.getRowCursor()
