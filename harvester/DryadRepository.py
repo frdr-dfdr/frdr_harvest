@@ -1,4 +1,5 @@
 from harvester.HarvestRepository import HarvestRepository
+from harvester.rate_limited import rate_limited
 import requests
 import time
 import json
@@ -46,7 +47,8 @@ class DryadRepository(HarvestRepository):
             # Initial API call
             url = self.url + "/search/"
             # Check for records updated in the past 30 days
-            querystring = {"per_page": str(100), "modifiedSince": datetime.strftime(datetime.fromtimestamp(self.last_crawl - 60*60*24*7), '%Y-%m-%dT%H:%M:%SZ')}
+            mod_since = self.last_crawl - 60*60*24*7 if self.last_crawl - 60*60*24*7 >= 0 else 0
+            querystring = {"per_page": str(100), "modifiedSince": datetime.strftime(datetime.fromtimestamp(mod_since), '%Y-%m-%dT%H:%M:%SZ')}
             r = requests.request("GET", url, headers=self.headers, params=querystring)
             response = r.json()
             records = response['_embedded']['stash:datasets']
@@ -86,6 +88,8 @@ class DryadRepository(HarvestRepository):
 
     def format_dryad_to_oai(self, dryad_record):
         record = {}
+        if "identifier" not in dryad_record:
+            return None
         record["identifier"] = dryad_record["identifier"]
         record["item_url"] = "https://doi.org/" + dryad_record["identifier"].split("doi:")[1]
 
@@ -149,12 +153,16 @@ class DryadRepository(HarvestRepository):
 
         return record
 
+    @rate_limited(5)
     def _update_record(self, record):
         try:
             record_url = self.url + "/datasets/" + urllib.parse.quote_plus(record["local_identifier"])
             try:
                 item_response = requests.get(record_url)
-                dryad_record = json.loads(item_response.text)
+                if (item_response.status_code == 200): # Dryad sends code 429 for rate limiting
+                    dryad_record = json.loads(item_response.text)
+                else:
+                    dryad_record = {}
             except Exception as e:
                 # Exception means this URL was not found
                 self.logger.error("Fetching record {} failed: {}".format(record_url, e))
