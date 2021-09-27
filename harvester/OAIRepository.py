@@ -186,8 +186,7 @@ class OAIRepository(HarvestRepository):
                                                                            (item_count / tdelta)))
 
             except AttributeError:
-                # probably not a valid OAI record
-                # Islandora throws this for non-object directories
+                # FIXME - cIRcle throws this error for 2 records on fresh harvest (2021-09-27)
                 self.logger.debug("AttributeError while working on item {}".format(item_count))
 
             except StopIteration:
