@@ -65,7 +65,7 @@ class OpenDataSoftRepository(HarvestRepository):
             return True
 
         except Exception as e:
-            self.logger.error("Updating OpenDataSoft Repository failed: {}".format(e))
+            self.logger.error("Updating OpenDataSoft Repository failed: {} {}".format(type(e).__name__, e))
             self.error_count = self.error_count + 1
             if self.error_count < self.abort_after_numerrors:
                 return True
@@ -132,7 +132,7 @@ class OpenDataSoftRepository(HarvestRepository):
                 self.db.write_record(oai_record, self)
             return True
         except Exception as e:
-            self.logger.error("Updating record {} failed: {}".format(record['local_identifier'], e))
+            self.logger.error("Updating record {} failed: {} {}".format(record['local_identifier'], type(e).__name__, e))
             if self.dump_on_failure == True:
                 try:
                     print(opendatasoft_record)

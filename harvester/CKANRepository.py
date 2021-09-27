@@ -496,7 +496,7 @@ class CKANRepository(HarvestRepository):
             return True
 
         except Exception as e:
-            self.logger.error("Updating record {} failed: {}".format(record['local_identifier'], e))
+            self.logger.error("Updating record {} failed: {} {}".format(record['local_identifier'], type(e).__name__, e))
             if self.dump_on_failure == True:
                 try:
                     print(ckan_record)

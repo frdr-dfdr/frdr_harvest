@@ -82,7 +82,7 @@ class HarvestRepository(object):
                     self._crawl()
                     self.db.update_last_crawl(self.repository_id)
                 except Exception as e:
-                    self.logger.error("Repository {} unable to be harvested: {}".format(self.name, e))
+                    self.logger.error("Repository {} unable to be harvested: {} {}".format(self.name, type(e).__name__, e))
             else:
                 self.logger.info("This repo is not yet due to be harvested")
         else:
@@ -142,6 +142,8 @@ class HarvestRepository(object):
 
     def update_stale_records(self, dbparams):
         """ This method will be called by a child class only, so that it uses its own _update_record() method """
+        # FIXME For repository types without update_record (e.g. ArcGIS, MarkLogic),
+        #  this produces misleading print statements and possibly loops through records unnecesarily
         if self.enabled != True:
             return True
         if self.db is None:

@@ -37,7 +37,7 @@ class DataverseRepository(HarvestRepository):
             self.logger.info("Found {} items in feed".format(item_count))
             return True
         except Exception as e:
-            self.logger.error("Updating Dataverse Repository failed: {}".format(e))
+            self.logger.error("Updating Dataverse Repository failed: {} {}".format(type(e).__name__, e))
             self.error_count = self.error_count + 1
             if self.error_count < self.abort_after_numerrors:
                 return True
@@ -78,7 +78,7 @@ class DataverseRepository(HarvestRepository):
             record = response.json()
             return record["data"]["name"]
         except Exception as e:
-            self.logger.error("Fetching dataverse_name for dataverse_id {} failed: {}".format(str(dataverse_id), e))
+            self.logger.error("Fetching dataverse_name for dataverse_id {} failed: {} {}".format(str(dataverse_id), type(e).__name__, e))
 
 
     def format_dataverse_to_oai(self, dataverse_record):
@@ -251,7 +251,7 @@ class DataverseRepository(HarvestRepository):
                 dataverse_record["combined_identifier"] = record['local_identifier']
             except Exception as e:
                 # Exception means this URL was not found
-                self.logger.error("Fetching record {} failed: {}".format(record_url, e))
+                self.logger.error("Fetching record {} failed: {} {}".format(record_url, type(e).__name__, e))
                 # Don't touch the record in this case  - touching updates timestamp and prevents updates for 30 days
                 # self.db.touch_record(record)
                 return True
@@ -266,7 +266,7 @@ class DataverseRepository(HarvestRepository):
                 self.db.touch_record(record)
             return True
         except Exception as e:
-            self.logger.error("Updating record {} failed: {}".format(record['local_identifier'], e))
+            self.logger.error("Updating record {} failed: {} {}".format(record['local_identifier'], type(e).__name__, e))
             if self.dump_on_failure == True:
                 try:
                     print(dataverse_record)

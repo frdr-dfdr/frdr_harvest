@@ -41,7 +41,7 @@ class ArcGISRepository(HarvestRepository):
 
 
         except Exception as e:
-            self.logger.error("Updating ArcGIS Repository failed: {}".format(e))
+            self.logger.error("Updating ArcGIS Repository failed: {} {}".format(type(e).__name__, e))
             self.error_count = self.error_count + 1
             if self.error_count < self.abort_after_numerrors:
                 return True

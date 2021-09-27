@@ -186,15 +186,14 @@ class OAIRepository(HarvestRepository):
                                                                            (item_count / tdelta)))
 
             except AttributeError:
-                # probably not a valid OAI record
-                # Islandora throws this for non-object directories
+                # FIXME - cIRcle throws this error for 2 records on fresh harvest (2021-09-27)
                 self.logger.debug("AttributeError while working on item {}".format(item_count))
 
             except StopIteration:
                 break
 
             except Exception as e:
-                self.logger.debug("Exception while working on item {}: {}".format(item_count, e))
+                self.logger.debug("Exception while working on item {}: {} {}".format(item_count, type(e).__name__, e))
 
         self.logger.info("Processed {} items in feed".format(item_count))
 
@@ -271,12 +270,14 @@ class OAIRepository(HarvestRepository):
                         place["province_state"] = place_split[2]
                         place["city"] = place_split[1]
                         place["other"] = place_split[0]
+                        # FIXME replace placeholder "-" for consistency with Dataverse
                     else:
                         place = {"place_name": geo_place}
                     if place not in record["geoplaces"]:
                         record["geoplaces"].append(place)
 
             if "http://datacite.org/schema/kernel-4#geolocationPoint" in record:
+                # FIXME look into why OAI is returning duplicate points
                 record["geopoints"] = []
                 for geopoint in record["http://datacite.org/schema/kernel-4#geolocationPoint"]:
                     point_split = geopoint.split()
@@ -524,6 +525,9 @@ class OAIRepository(HarvestRepository):
 
     @rate_limited(5)
     def _update_record(self, record):
+        # FIXME this function is never called for FRDR repos (collections), since repo_refresh_days = 0
+        #  but we might be relying on logic from here for FRDR repos?
+
         #self.logger.debug("Updating OAI record {}".format(record["local_identifier"]))
 
         try:
@@ -543,8 +547,8 @@ class OAIRepository(HarvestRepository):
                 metadata["date"] = single_record.header.datestamp
 
             metadata["identifier"] = single_record.header.identifier
-            metadata["geodisy_harvested"] = single_record.get("geodisy_harvested", 0)
-            metadata["fizes_size"] = single_record.get("files_size", 0)
+            metadata["geodisy_harvested"] = single_record.get("geodisy_harvested", 0) # FIXME exception thrown here, FRDRRecord does not have "get"
+            metadata["fizes_size"] = single_record.get("files_size", 0) # FIXME this would also thrown an exception if it were reachable
             oai_record = self.unpack_oai_metadata(metadata)
             self.domain_metadata = self.find_domain_metadata(metadata)
             if oai_record is None:
@@ -559,8 +563,8 @@ class OAIRepository(HarvestRepository):
             return True
 
         except Exception as e:
-            self.logger.error("Updating item failed (repo_id:{}, oai_id:{}): {}".format(self.repository_id,
-                                                                                        record["local_identifier"], e))
+            self.logger.error("Updating item failed (repo_id:{}, oai_id:{}): {} {}".format(self.repository_id,
+                                                                                        record["local_identifier"], type(e).__name__, e))
             if self.dump_on_failure == True:
                 try:
                     print(single_record.metadata)

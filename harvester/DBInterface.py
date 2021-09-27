@@ -241,7 +241,7 @@ class DBInterface:
     def write_ror_affiliation_match(self, affiliation_string, ror_id, score, country):
         ror_affiliation_match_id = self.get_single_record_id("ror_affiliation_matches", affiliation_string)
         if ror_affiliation_match_id is not None:
-            self.delete_row_generic("ror_affiliation_matches", affiliation_string, ror_affiliation_match_id)
+            self.delete_rows("ror_affiliation_matches", affiliation_string, ror_affiliation_match_id)
         extras = {"ror_id": ror_id, "score": score, "country": country, "updated_timestamp": int(time.time())}
         self.insert_related_record("ror_affiliation_matches", affiliation_string, **extras)
         return self.get_ror_from_affiliation(affiliation_string)
@@ -288,21 +288,16 @@ class DBInterface:
                 self.logger.error("Unable to mark as deleted record {}".format(record['local_identifier']))
                 return False
 
-            try:
-                self.delete_all_related_records("records_x_access", record['record_id'])
-                self.delete_all_related_records("records_x_creators", record['record_id'])
-                self.delete_all_related_records("records_x_publishers", record['record_id'])
-                self.delete_all_related_records("records_x_rights", record['record_id'])
-                self.delete_all_related_records("records_x_subjects", record['record_id'])
-                self.delete_all_related_records("records_x_affiliations", record['record_id'])
-                self.delete_all_related_records("records_x_tags", record['record_id'])
-                self.delete_all_related_records("descriptions", record['record_id'])
-                self.delete_all_related_records("geospatial", record['record_id'])
-                self.delete_all_related_records("domain_metadata", record['record_id'])
-            except Exception as e:
-                self.logger.error(
-                    "Unable to delete related table rows for record {}".format(record['local_identifier']))
-                return False
+        try:
+            for tablename in [
+                "records_x_access", "records_x_affiliations", "records_x_crdc", "records_x_creators",
+                "descriptions", "domain_metadata", "geobbox", "geofile", "records_x_geoplace", "geopoint", "geospatial",
+                "records_x_publishers", "records_x_rights", "records_x_subjects", "records_x_tags" ]:
+                self.delete_rows(tablename, "record_id", record['record_id'])
+        except Exception as e:
+            self.logger.error(
+                "delete_record() failed for record {}: {}".format(record['local_identifier'], e))
+            return False
 
         self.logger.debug("Marked as deleted: record {}".format(record['local_identifier']))
         return True
@@ -318,14 +313,7 @@ class DBInterface:
                 return False
         return True
 
-    def delete_all_related_records(self, crosstable, record_id, extrawhere=""):
-        return self.delete_row_generic(crosstable, "record_id", record_id, extrawhere)
-
-    def delete_one_related_record(self, crosstable, column_value, record_id, extrawhere=""):
-        columnname = self.get_table_value_column(crosstable)
-        self.delete_row_generic(crosstable, columnname, column_value, "and record_id="+str(record_id) + " " + extrawhere)
-
-    def delete_row_generic(self, tablename, columnname, column_value, extrawhere=""):
+    def delete_rows(self, tablename, columnname, column_value, extrawhere=""):
         con = self.getConnection()
         with con:
             cur = self.getRowCursor()
@@ -333,7 +321,8 @@ class DBInterface:
                 sqlstring = "DELETE from {} where {}=? {}".format(tablename, columnname, extrawhere)
                 cur.execute(self._prep(sqlstring), (column_value,))
             except Exception as e:
-                return False
+                self.logger.error("delete_rows() failed with sqlstring \"{}\": {}".format(sqlstring, e))
+                raise e
         return True
 
     def update_row_generic(self, tablename, row_id, updates, extrawhere=""):
@@ -360,6 +349,20 @@ class DBInterface:
         if tablename in self.tabledict and "valcol" in self.tabledict[tablename]:
             return str(self.tabledict[tablename]["valcol"])
         raise ValueError("tables.json missing valcol definition for {}".format(tablename))
+
+    def get_table_extracolumn(self, tablename):
+        if tablename in self.tabledict and "extracolumn" in self.tabledict[tablename]:
+            if self.tabledict[tablename]["extracolumn"] != "":
+                return str(self.tabledict[tablename]["extracolumn"])
+            return None
+        raise ValueError("tables.json missing extra definition for {}".format(tablename))
+
+    def get_table_crosstable(self, tablename):
+        if tablename in self.tabledict and "crosstable" in self.tabledict[tablename]:
+            if self.tabledict[tablename]["crosstable"] != "":
+                return str(self.tabledict[tablename]["crosstable"])
+            return None
+        raise ValueError("tables.json missing cross definition for {}".format(tablename))
 
     def insert_related_record(self, tablename, val, **kwargs):
         valcolumn = self.get_table_value_column(tablename)
@@ -412,7 +415,6 @@ class DBInterface:
                 self.logger.error("Record insertion problem: {}".format(e))
 
         return cross_table_id
-
 
     def get_multiple_records(self, tablename, columnlist, given_col, given_val, extrawhere="", **kwargs):
         records = []
@@ -536,6 +538,153 @@ class DBInterface:
 
         return returnvalue
 
+    def update_related_metadata(self, record, val_table, val_fieldname, extras={}):
+        extrawhere = ""
+        modified_upstream = False
+        val_idcol = self.get_table_id_column(val_table)
+        crosstable = self.get_table_crosstable(val_table)
+        extracolumn = self.get_table_extracolumn(val_table)
+        if extracolumn:
+            extrawhere = "and " + extracolumn + "='" + str(extras[extracolumn]) + "'"
+
+        if crosstable:
+            existing_val_recs = self.get_records_raw_query("""select v.{} from {} v
+                               join {} x on x.{} = v.{}
+                               where x.record_id = {} {} """.format(val_idcol, val_table, crosstable, val_idcol, val_idcol, record["record_id"], extrawhere))
+        else:
+            existing_val_recs = self.get_multiple_records(val_table, val_idcol, "record_id", record["record_id"], extrawhere)
+        existing_val_recs_ids = [e[val_idcol] for e in existing_val_recs]
+        if val_fieldname in record:
+            if not isinstance(record[val_fieldname], list):
+                record[val_fieldname] = [record[val_fieldname]]
+            new_val_recs_ids = []
+            for value in record[val_fieldname]:
+                if value:
+                    # special cases
+                    if val_fieldname == "geoplaces":
+                        if "country" not in value:
+                            value["country"] = ""
+                        if "province_state" not in value:
+                            value["province_state"] = ""
+                        if "city" not in value:
+                            value["city"] = ""
+                        if "other" not in value:
+                            value["other"] = ""
+                        if "place_name" not in value:
+                            value["place_name"] = ""
+                        extras = {"country": value["country"], "province_state": value["province_state"], "city": value["city"], "other": value["other"]}
+                        value = value["place_name"]
+                    elif val_fieldname == "geopoints":
+                        if "lat" in value and "lon" in value:
+                            try:
+                                value["lat"] = float(value["lat"])
+                                value["lon"] = float(value["lon"])
+                                # Check coordinates are valid numbers
+                                if not (self.check_lat(value.get("lat")) and self.check_long(value.get("lon"))):
+                                    continue
+                                extras = {"lat": value["lat"], "lon": value["lon"]}
+                            except Exception as e:
+                                self.logger.error("Unable to update geopoint for record id {}: {}".format(record['record_id'], e))
+                                continue
+                    elif val_fieldname == "geobboxes":
+                        try:
+                            # Fill in any missing values
+                            if "eastLon" not in value and "westLon" in value:
+                                value["eastLon"] = value["westLon"]
+                            if "westLon" not in value and "eastLon" in value:
+                                value["westLon"] = value["eastLon"]
+                            if "northLat" not in value and "southLat" in value:
+                                value["northLat"] = value["southLat"]
+                            if "southLat" not in value and "northLat" in value:
+                                value["southLat"] = value["northLat"]
+                            # Check all coordinates are valid numbers
+                            if not (self.check_lat(value.get("northLat")) and self.check_lat(value.get("southLat")) and
+                                    self.check_long(value.get("westLon")) and self.check_long(value.get("eastLon"))):
+                                continue
+                            if value["westLon"] != value["eastLon"] or value["northLat"] != value["southLat"]:
+                                # If west/east or north/south don't match, this is a box
+                                extras = {"westLon": value["westLon"], "eastLon": value["eastLon"],
+                                          "northLat": value["northLat"], "southLat": value["southLat"]}
+                            else:
+                                if "geopoints" not in record:
+                                    record["geopoints"] = []
+                                record["geopoints"].append({"lat": value["northLat"], "lon": value["westLon"]})
+                                continue
+                        except Exception as e:
+                            self.logger.error("Unable to update geobbox for record id {}: {}".format(record['record_id'], e))
+                            continue
+                    elif val_fieldname == "geofiles":
+                        if "filename" in value and "uri" in value:
+                            extras = {"filename": value["filename"], "uri": value["uri"]}
+                    elif val_fieldname == "affiliation":
+                        if isinstance(value, dict) and "affiliation_ror" in list(value.keys()):
+                            extras = {"affiliation_ror": value["affiliation_ror"]}
+                        else:
+                            extras = {"affiliation_ror": ""}
+                        if isinstance(value, dict) and "affiliation_name" in list(value.keys()):
+                            value = value["affiliation_name"]
+                    elif val_fieldname in ["rights", "description", "description_fr"]:
+                        sha1 = hashlib.sha1()
+                        sha1.update(value.encode('utf-8'))
+                        original_value = value
+                        value = sha1.hexdigest()
+                        if val_fieldname == "rights":
+                            extras = {"rights": original_value}
+                        elif val_fieldname == "description":
+                            extras =  {"record_id": record["record_id"], "language": "en"}
+                        elif val_fieldname == "description_fr":
+                            extras = {"record_id": record["record_id"], "language": "fr"}
+
+                    # get existing value record if it exists
+                    if val_fieldname in ["affiliation", "description", "description_fr", "geoplaces"]:
+                        val_rec_id = self.get_single_record_id(val_table, value, **extras)
+                    elif val_fieldname in ["tags", "tags_fr", "subject", "subject_fr"]:
+                        val_rec_id = self.get_single_record_id(val_table, value, extrawhere)
+                    elif val_fieldname in ["geopoints", "geobboxes", "geofiles"]:
+                        val_rec_id = self.get_single_record_id(val_table, record["record_id"], **extras)
+                    else: # ["creator", "contributor", "publisher", "rights"]
+                        val_rec_id = self.get_single_record_id(val_table, value)
+
+                    # write val_table record and crosstable records if needed
+                    if val_rec_id is None:
+                        if val_fieldname in ["description", "description_fr"]:
+                            extras["description"] = original_value
+
+                        if val_fieldname in ["creator", "contributor", "publisher"]:
+                            val_rec_id = self.insert_related_record(val_table, value)
+                        elif val_fieldname in ["geopoints", "geobboxes", "geofiles"]:
+                            val_rec_id = self.insert_related_record(val_table, record["record_id"], **extras)
+                        else: # ["affiliation", "rights", "tags", "tags_fr", "subject", "subject_fr", "description", "description_fr", "geoplaces"]:
+                            val_rec_id = self.insert_related_record(val_table, value, **extras)
+                        if val_fieldname != "geopoints": # Remove conditional when Geodisy starts processing points
+                            modified_upstream = True
+                    if val_rec_id is not None:
+                        new_val_recs_ids.append(val_rec_id)
+                        if crosstable:
+                            if val_rec_id not in existing_val_recs_ids:
+                                if val_fieldname in ["creator", "contributor"]:
+                                    self.insert_cross_record(crosstable, val_table, val_rec_id, record["record_id"], **extras)
+                                else:
+                                    self.insert_cross_record(crosstable, val_table, val_rec_id, record["record_id"])
+                                modified_upstream = True
+            for eid in existing_val_recs_ids: # delete value if no longer present in incoming record values
+                if eid not in new_val_recs_ids:
+                    modified_upstream = True
+                    if crosstable:
+                        # Delete the cross table row but leave the related value table row, it may be used elsewhere
+                        deletewhere = "and " + val_idcol + "='" + str(eid) + "'"
+                        self.delete_rows(crosstable, "record_id", str(record["record_id"]), deletewhere )
+                    else:
+                        self.delete_rows(val_table, val_idcol, eid)
+        elif existing_val_recs: # delete metadata if the field is no longer present at all in incoming record
+            modified_upstream = True
+            if crosstable:
+                self.delete_rows(crosstable, "record_id", record["record_id"])
+            else:
+                for eid in existing_val_recs_ids:
+                    self.delete_rows(val_table, val_idcol, eid)
+        return modified_upstream
+
     def write_record(self, record, repo):
         repo_id = repo.repository_id
         domain_metadata = repo.domain_metadata
@@ -566,19 +715,14 @@ class DBInterface:
             if len(records) == 1:
                 existing_record = records[0]
                 try:
-                    if existing_record["title"] != record["title"]:
+                    for record_field in ["title", "title_fr", "pub_date", "series", "item_url"]:
+                        if existing_record[record_field] != record[record_field]:
+                            modified_upstream = True
+                            break
                         modified_upstream = True
-                    elif existing_record["title_fr"] != record["title_fr"]:
-                        modified_upstream = True
-                    elif existing_record["pub_date"] != record["pub_date"]:
-                        modified_upstream = True
-                    elif existing_record["series"] != record["series"]:
+                    if existing_record["local_identifier"] != record["identifier"]:
                         modified_upstream = True
                     elif existing_record["source_url"] is None and existing_record["source_url"] != source_url:
-                        modified_upstream = True
-                    elif existing_record["item_url"] != record["item_url"]:
-                        modified_upstream = True
-                    elif existing_record["local_identifier"] != record["identifier"]:
                         modified_upstream = True
                     if existing_record["files_size"] != record.get("files_size",0):
                         record["files_altered"] = 1
@@ -586,6 +730,7 @@ class DBInterface:
                 except AttributeError:
                     self.logger.debug("AttributeError trying to access field when checking if record has changed since Geodisy last ran")
                     raise AssertionError
+
             with con:
                 cur = self.getRowCursor()
                 cur.execute(self._prep(
@@ -598,483 +743,115 @@ class DBInterface:
         if record["record_id"] is None:
             return None
 
-        if "creator" in record:
-            if not isinstance(record["creator"], list):
-                record["creator"] = [record["creator"]]
-            extrawhere = "and is_contributor=0"
-            existing_creator_recs = self.get_multiple_records("records_x_creators", "creator_id", "record_id",
-                                                              record["record_id"], extrawhere)
-            existing_creator_ids = [e["creator_id"] for e in existing_creator_recs]
-            new_creator_ids = []
-            for creator in record["creator"]:
-                creator_id = self.get_single_record_id("creators", creator)
-                if creator_id is None:
-                    creator_id = self.insert_related_record("creators", creator)
-                    modified_upstream = True
-                if creator_id is not None:
-                    new_creator_ids.append(creator_id)
-                    if creator_id not in existing_creator_ids:
-                        extras = {"is_contributor": 0}
-                        self.insert_cross_record("records_x_creators", "creators", creator_id, record["record_id"],
-                                                 **extras)
-                        modified_upstream = True
-            for eid in existing_creator_ids:
-                if eid not in new_creator_ids:
-                    modified_upstream = True
-                    self.delete_one_related_record("records_x_creators", eid, record["record_id"], extrawhere)
+        # creators
+        if self.update_related_metadata(record, "creators", "creator", {"is_contributor": 0}):
+            modified_upstream = True
 
-        if "contributor" in record:
-            if not isinstance(record["contributor"], list):
-                record["contributor"] = [record["contributor"]]
-            extrawhere = "and is_contributor=1"
-            existing_creator_recs = self.get_multiple_records("records_x_creators", "creator_id", "record_id",
-                                                              record["record_id"], extrawhere)
-            existing_creator_ids = [e["creator_id"] for e in existing_creator_recs]
-            new_creator_ids = []
-            for creator in record["contributor"]:
-                creator_id = self.get_single_record_id("creators", creator)
-                if creator_id is None:
-                    creator_id = self.insert_related_record("creators", creator)
-                    modified_upstream = True
-                if creator_id is not None:
-                    new_creator_ids.append(creator_id)
-                    if creator_id not in existing_creator_ids:
-                        extras = {"is_contributor": 1}
-                        self.insert_cross_record("records_x_creators", "creators", creator_id, record["record_id"],
-                                                 **extras)
-                        modified_upstream = True
-            for eid in existing_creator_ids:
-                if eid not in new_creator_ids:
-                    modified_upstream = True
-                    self.delete_one_related_record("records_x_creators", eid, record["record_id"], extrawhere)
-        else:
-            extrawhere = "and is_contributor=1"
-            existing_creator_recs = self.get_multiple_records("records_x_creators", "creator_id", "record_id",
-                                                              record["record_id"], extrawhere)
-            if existing_creator_recs:
-                self.delete_all_related_records("records_x_creators", record["record_id"], extrawhere)
+        # contributors
+        if self.update_related_metadata(record, "creators", "contributor", {"is_contributor": 1}):
+            modified_upstream = True
 
-        if "subject" in record:
-            if not isinstance(record["subject"], list):
-                record["subject"] = [record["subject"]]
-            existing_subject_recs_en = self.get_records_raw_query("""select s.subject_id from subjects s
-                join records_x_subjects x on x.subject_id = s.subject_id
-                where x.record_id = {} and s.language = 'en' """.format(record["record_id"]))
-            existing_subject_ids = [e["subject_id"] for e in existing_subject_recs_en]
-            new_subject_ids = []
-            for subject in record["subject"]:
-                subject_id = self.get_single_record_id("subjects", subject, "and language='en'")
-                if subject_id is None:
-                    extras = {"language": "en"}
-                    subject_id = self.insert_related_record("subjects", subject, **extras)
-                    modified_upstream = True
-                if subject_id is not None:
-                    new_subject_ids.append(subject_id)
-                    if subject_id not in existing_subject_ids:
-                        self.insert_cross_record("records_x_subjects", "subjects", subject_id, record["record_id"])
-                        modified_upstream = True
-            for eid in existing_subject_ids:
-                if eid not in new_subject_ids:
-                    modified_upstream = True
-                    self.delete_one_related_record("records_x_subjects", eid, record["record_id"])
+        # publishers
+        if self.update_related_metadata(record, "publishers", "publisher"):
+            modified_upstream = True
 
-        if "subject_fr" in record:
-            if not isinstance(record["subject_fr"], list):
-                record["subject_fr"] = [record["subject_fr"]]
-            existing_subject_recs_fr = self.get_records_raw_query("""select s.subject_id from subjects s
-                join records_x_subjects x on x.subject_id = s.subject_id
-                where x.record_id = {} and s.language = 'fr' """.format(record["record_id"]))
-            existing_subject_ids = [e["subject_id"] for e in existing_subject_recs_fr]
-            new_subject_ids = []
-            for subject in record["subject_fr"]:
-                subject_id = self.get_single_record_id("subjects", subject, "and language='fr'")
-                if subject_id is None:
-                    extras = {"language": "fr"}
-                    subject_id = self.insert_related_record("subjects", subject, **extras)
-                    modified_upstream = True
-                if subject_id is not None:
-                    new_subject_ids.append(subject_id)
-                    if subject_id not in existing_subject_ids:
-                        self.insert_cross_record("records_x_subjects", "subjects", subject_id, record["record_id"])
-                        modified_upstream = True
-            for eid in existing_subject_ids:
-                if eid not in new_subject_ids:
-                    modified_upstream = True
-                    self.delete_one_related_record("records_x_subjects", eid, record["record_id"])
+        # affiliations
+        if self.update_related_metadata(record, "affiliations", "affiliation"):
+            modified_upstream = True
 
-        if "publisher" in record:
-            if not isinstance(record["publisher"], list):
-                record["publisher"] = [record["publisher"]]
-            existing_publisher_recs = self.get_multiple_records("records_x_publishers", "publisher_id", "record_id",
-                                                                record["record_id"])
-            existing_publisher_ids = [e["publisher_id"] for e in existing_publisher_recs]
-            new_publisher_ids = []
-            for publisher in record["publisher"]:
-                publisher_id = self.get_single_record_id("publishers", publisher)
-                if publisher_id is None:
-                    publisher_id = self.insert_related_record("publishers", publisher)
-                    modified_upstream = True
-                if publisher_id is not None:
-                    new_publisher_ids.append(publisher_id)
-                    if publisher_id not in existing_publisher_ids:
-                        self.insert_cross_record("records_x_publishers", "publishers", publisher_id,
-                                                 record["record_id"])
-                        modified_upstream = True
-            for eid in existing_publisher_ids:
-                if eid not in new_publisher_ids:
-                    modified_upstream = True
-                    self.delete_one_related_record("records_x_publishers", eid, record["record_id"])
+        # access
+        if self.update_related_metadata(record, "access", "access"):
+            modified_upstream = True
 
-        if "affiliation" in record:
-            if not isinstance(record["affiliation"], list):
-                record["affiliation"] = [record["affiliation"]]
-            existing_affiliation_recs = self.get_multiple_records("records_x_affiliations", "*",
-                                                                  "record_id", record["record_id"])
-            existing_affiliation_ids = [e["affiliation_id"] for e in existing_affiliation_recs]
-            new_affiliation_ids = []
-            for affil in record["affiliation"]:
-                if isinstance(affil, str):
-                    affil = {"affiliation_name": affil, "affiliation_ror": ""}
-                extras = {"affiliation_ror": affil["affiliation_ror"]}
-                affiliation_id = self.get_single_record_id("affiliations", affil["affiliation_name"], **extras)
-                if affiliation_id is None:
-                    affiliation_id = self.insert_related_record("affiliations", affil["affiliation_name"], **extras)
-                    modified_upstream = True
-                if affiliation_id is not None:
-                    new_affiliation_ids.append(affiliation_id)
-                    if affiliation_id not in existing_affiliation_ids:
-                        self.insert_cross_record("records_x_affiliations", "affiliations", affiliation_id,
-                                                 record["record_id"])
-                        modified_upstream = True
-            for eid in existing_affiliation_ids:
-                if eid not in new_affiliation_ids:
-                    modified_upstream = True
-                    self.delete_one_related_record("records_x_affiliations", eid, record["record_id"])
+        # rights
+        if self.update_related_metadata(record, "rights", "rights"):
+            modified_upstream = True
 
-        if "rights" in record:
-            if not isinstance(record["rights"], list):
-                record["rights"] = [record["rights"]]
-            existing_rights_recs = self.get_multiple_records("records_x_rights", "rights_id", "record_id",
-                                                             record["record_id"])
-            existing_rights_ids = [e["rights_id"] for e in existing_rights_recs]
-            new_rights_ids = []
-            for rights in record["rights"]:
-                # Use a hash for lookups so we don't need to maintain a full text index
-                sha1 = hashlib.sha1()
-                sha1.update(rights.encode('utf-8'))
-                rights_hash = sha1.hexdigest()
-                rights_id = self.get_single_record_id("rights", rights_hash)
-                if rights_id is None:
-                    extras = {"rights": rights}
-                    rights_id = self.insert_related_record("rights", rights_hash, **extras)
-                    modified_upstream = True
-                if rights_id is not None:
-                    new_rights_ids.append(rights_id)
-                    if rights_id not in existing_rights_ids:
-                        self.insert_cross_record("records_x_rights", "rights", rights_id, record["record_id"])
-                        modified_upstream = True
-            for eid in existing_rights_ids:
-                if eid not in new_rights_ids:
-                    modified_upstream = True
-                    self.delete_one_related_record("records_x_rights", eid, record["record_id"])
+        # tags - en
+        if self.update_related_metadata(record, "tags", "tags", {"language": "en"}):
+            modified_upstream = True
 
-        if "description" in record:
-            if not isinstance(record["description"], list):
-                record["description"] = [record["description"]]
-            existing_description_recs = self.get_multiple_records("descriptions", "description_id", "record_id",
-                                                                  record["record_id"], "and language='en'")
-            existing_description_ids = [e["description_id"] for e in existing_description_recs]
-            new_description_ids = []
-            for description in record["description"]:
-                # Use a hash for lookups so we don't need to maintain a full text index
-                if description is not None:
-                    sha1 = hashlib.sha1()
-                    sha1.update(description.encode('utf-8'))
-                    description_hash = sha1.hexdigest()
-                    description_id = self.get_single_record_id("descriptions", description_hash, "and record_id=" +
-                                                               str(record["record_id"]) + " and language='en'")
-                    if description_id is None:
-                        extras = {"record_id": record["record_id"], "language": "en", "description": description}
-                        description_id = self.insert_related_record("descriptions", description_hash, **extras)
-                        modified_upstream = True
-                    if description_id is not None:
-                        new_description_ids.append(description_id)
-            for eid in existing_description_ids:
-                if eid not in new_description_ids:
-                    self.delete_row_generic("descriptions", "description_id", eid)
-                    modified_upstream = True
+        # tags - fr
+        if self.update_related_metadata(record, "tags", "tags_fr", {"language": "fr"}):
+            modified_upstream = True
 
-        if "description_fr" in record:
-            if not isinstance(record["description_fr"], list):
-                record["description_fr"] = [record["description_fr"]]
-            existing_description_recs = self.get_multiple_records("descriptions", "description_id", "record_id",
-                                                                  record["record_id"], "and language='fr'")
-            existing_description_ids = [e["description_id"] for e in existing_description_recs]
-            new_description_ids = []
-            for description in record["description_fr"]:
-                # Use a hash for lookups so we don't need to maintain a full text index
-                if description is not None:
-                    sha1 = hashlib.sha1()
-                    sha1.update(description.encode('utf-8'))
-                    description_hash = sha1.hexdigest()
-                    description_id = self.get_single_record_id("descriptions", description_hash, "and record_id=" +
-                                                               str(record["record_id"]) + " and language='fr'")
-                    if description_id is None:
-                        extras = {"record_id": record["record_id"], "language": "fr", "description": description}
-                        description_id = self.insert_related_record("descriptions", description_hash, **extras)
-                        modified_upstream = True
-                    if description_id is not None:
-                        new_description_ids.append(description_id)
-            for eid in existing_description_ids:
-                if eid not in new_description_ids:
-                    self.delete_row_generic("descriptions", "description_id", eid)
-                    modified_upstream = True
+        # subjects - en
+        if self.update_related_metadata(record, "subjects", "subject", {"language": "en"}):
+            modified_upstream = True
 
-        if "tags" in record:
-            if not isinstance(record["tags"], list):
-                record["tags"] = [record["tags"]]
-            existing_tag_recs_en = self.get_records_raw_query("""select t.tag_id from tags t
-                join records_x_tags x on x.tag_id = t.tag_id
-                where x.record_id = {} and t.language = 'en' """.format(record["record_id"]))
-            existing_tag_ids = [e["tag_id"] for e in existing_tag_recs_en]
-            new_tag_ids = []
-            for tag in record["tags"]:
-                tag_id = self.get_single_record_id("tags", tag, "and language='en'")
-                if tag_id is None:
-                    extras = {"language": "en"}
-                    tag_id = self.insert_related_record("tags", tag, **extras)
-                    modified_upstream = True
-                if tag_id is not None:
-                    new_tag_ids.append(tag_id)
-                    if tag_id not in existing_tag_ids:
-                        self.insert_cross_record("records_x_tags", "tags", tag_id, record["record_id"])
-                        modified_upstream = True
-            for eid in existing_tag_ids:
-                if eid not in new_tag_ids:
-                    modified_upstream = True
-                    self.delete_one_related_record("records_x_tags", eid, record["record_id"])
+        # subjects - fr
+        if self.update_related_metadata(record, "subjects", "subject_fr", {"language": "fr"}):
+            modified_upstream = True
 
-        if "tags_fr" in record:
-            if not isinstance(record["tags_fr"], list):
-                record["tags_fr"] = [record["tags_fr"]]
-            existing_tag_recs_fr = self.get_records_raw_query("""select t.tag_id from tags t
-                join records_x_tags x on x.tag_id = t.tag_id
-                where x.record_id = {} and t.language = 'fr' """.format(record["record_id"]))
-            existing_tag_ids = [e["tag_id"] for e in existing_tag_recs_fr]
-            new_tag_ids = []
-            for tag in record["tags_fr"]:
-                tag_id = self.get_single_record_id("tags", tag, "and language='fr'")
-                if tag_id is None:
-                    extras = {"language": "fr"}
-                    tag_id = self.insert_related_record("tags", tag, **extras)
-                    modified_upstream = True
-                if tag_id is not None:
-                    new_tag_ids.append(tag_id)
-                    if tag_id not in existing_tag_ids:
-                        self.insert_cross_record("records_x_tags", "tags", tag_id, record["record_id"])
-                        modified_upstream = True
-            for eid in existing_tag_ids:
-                if eid not in new_tag_ids:
-                    modified_upstream = True
-                    self.delete_one_related_record("records_x_tags", eid, record["record_id"])
+        # geoplaces
+        if self.update_related_metadata(record, "geoplace", "geoplaces"):
+            modified_upstream = True
 
-        if "access" in record:
-            if not isinstance(record["access"], list):
-                record["access"] = [record["access"]]
-            existing_access_recs = self.get_multiple_records("records_x_access", "access_id", "record_id",
-                                                             record["record_id"])
-            existing_access_ids = [e["access_id"] for e in existing_access_recs]
-            new_access_ids = []
-            for access in record["access"]:
-                access_id = self.get_single_record_id("access", access)
-                if access_id is None:
-                    access_id = self.insert_related_record("access", access)
-                    modified_upstream = True
-                if access_id is not None:
-                    new_access_ids.append(access_id)
-                    if access_id not in existing_access_ids:
-                        self.insert_cross_record("records_x_access", "access", access_id, record["record_id"])
-                        modified_upstream = True
-            for eid in existing_access_ids:
-                if eid not in new_access_ids:
-                    modified_upstream = True
-                    self.delete_one_related_record("records_x_access", eid, record["record_id"])
+        # descriptions - en
+        if self.update_related_metadata(record, "descriptions", "description", {"language": "en"}):
+            modified_upstream = True
 
-        if "geobboxes" in record:
-            existing_geobbox_recs = self.get_multiple_records("geobbox", "*", "record_id",
-                                                                record["record_id"])
-            existing_geobbox_ids = [e["geobbox_id"] for e in existing_geobbox_recs]
-            new_geobbox_ids = []
-            for geobbox in record["geobboxes"]:
-                # Fill in any missing values
-                if "eastLon" not in geobbox and "westLon" in geobbox:
-                    geobbox["eastLon"] = geobbox["westLon"]
-                if "westLon" not in geobbox and "eastLon" in geobbox:
-                    geobbox["westLon"] = geobbox["eastLon"]
-                if "northLat" not in geobbox and "southLat" in geobbox:
-                    geobbox["northLat"] = geobbox["southLat"]
-                if "southLat" not in geobbox and "northLat" in geobbox:
-                        geobbox["southLat"] = geobbox["northLat"]
+        # descriptions - fr
+        if self.update_related_metadata(record, "descriptions", "description_fr", {"language": "fr"}):
+            modified_upstream = True
 
-                if "westLon" in geobbox and "eastLon" in geobbox and "northLat" in geobbox and "southLat" in geobbox:
-                    try:
-                        geobbox["westLon"] = float(geobbox["westLon"])
-                        geobbox["eastLon"] = float(geobbox["eastLon"])
-                        geobbox["northLat"] = float(geobbox["northLat"])
-                        geobbox["southLat"] = float(geobbox["southLat"])
-                        # Check all coordinates are valid numbers
-                        if not (self.check_lat(geobbox.get("northLat")) and self.check_lat(geobbox.get("southLat")) and self.check_long(geobbox.get("westLon")) and self.check_long(geobbox.get("eastLon"))):
-                            continue
-                        if geobbox["westLon"] != geobbox["eastLon"] or geobbox["northLat"] != geobbox["southLat"]:
-                            # If west/east or north/south don't match, this is a box
-                            extras = {"westLon": geobbox["westLon"], "eastLon": geobbox["eastLon"],
-                                      "northLat": geobbox["northLat"], "southLat": geobbox["southLat"]}
-                            geobbox_id = self.get_single_record_id("geobbox", record["record_id"], **extras)
-                            if geobbox_id is None:
-                                geobbox_id = self.insert_related_record("geobbox", record["record_id"], **extras)
-                                modified_upstream = True
-                            if geobbox_id is not None:
-                                new_geobbox_ids.append(geobbox_id)
-                        else:
-                            # If west/east and north/south match, this is a point
-                            if "geopoints" not in record:
-                                record["geopoints"] = []
-                            record["geopoints"].append({"lat": geobbox["northLat"], "lon": geobbox["westLon"]})
-                    except Exception as e:
-                        self.logger.error("Unable to update geobbox for record id {}: {}".format(record['record_id'], e))
+        # geobboxes
+        if self.update_related_metadata(record, "geobbox", "geobboxes"):
+            modified_upstream = True
 
-            # Remove any existing boxes that aren't also in the new boxes
-            for eid in existing_geobbox_ids:
-                if eid not in new_geobbox_ids:
-                    self.delete_row_generic("geobbox", "geobbox_id", eid)
-                    modified_upstream = True
+        # geopoints
+        if self.update_related_metadata(record, "geopoint", "geopoints"):
+            modified_upstream = True
 
-        if "geopoints" in record:
-            existing_geopoint_recs = self.get_multiple_records("geopoint", "*", "record_id",
-                                                                record["record_id"])
-            existing_geopoint_ids = [e["geopoint_id"] for e in existing_geopoint_recs]
-            new_geopoint_ids = []
-            for geopoint in record["geopoints"]:
-                if "lat" in geopoint and "lon" in geopoint:
-                    try:
-                        geopoint["lat"] = float(geopoint["lat"])
-                        geopoint["lon"] = float(geopoint["lon"])
-                        # Check coordinates are valid numbers
-                        if not (self.check_lat(geopoint.get("lat")) and self.check_long(geopoint.get("lon"))):
-                            continue
-                        extras = {"lat": geopoint["lat"], "lon": geopoint["lon"]}
-                        geopoint_id = self.get_single_record_id("geopoint", record["record_id"], **extras)
-                        if geopoint_id is None:
-                            self.insert_related_record("geopoint", record["record_id"], **extras)
-                            #modified_upstream = True # Uncomment when Geodisy starts processing points
-                        if geopoint_id is not None:
-                            new_geopoint_ids.append(geopoint_id)
-                    except Exception as e:
-                        self.logger.error("Unable to update geopoint for record id {}: {}".format(record['record_id'], e))
+        # geofiles
+        if self.update_related_metadata(record, "geofile", "geofiles"):
+            modified_upstream = True
 
-            # Remove any existing points that aren't also in the new points
-            for eid in existing_geopoint_ids:
-                if eid not in new_geopoint_ids:
-                    self.delete_row_generic("geopoint", "geopoint_id", eid)
-                    modified_upstream = True
-
-        if "geoplaces" in record:
-            existing_geoplace_recs = self.get_multiple_records("records_x_geoplace", "*", "record_id",
-                                                          record["record_id"])
-            existing_geoplace_ids = [e["geoplace_id"] for e in existing_geoplace_recs]
-            new_geoplace_ids = []
-            for geoplace in record["geoplaces"]:
-                if "country" not in geoplace:
-                    geoplace["country"] = ""
-                if "province_state" not in geoplace:
-                    geoplace["province_state"] = ""
-                if "city" not in geoplace:
-                    geoplace["city"] = ""
-                if "other" not in geoplace:
-                    geoplace["other"] = ""
-                if "place_name" not in geoplace:
-                    geoplace["place_name"] = ""
-                extras = {"country": geoplace["country"], "province_state": geoplace["province_state"]
-                          , "city": geoplace["city"], "other": geoplace["other"]}
-                geoplace_id = self.get_single_record_id("geoplace", geoplace["place_name"], **extras)
-
-                if geoplace_id is None:
-                    geoplace_id = self.insert_related_record("geoplace", geoplace["place_name"], **extras)
-                    modified_upstream = True
-                if geoplace_id is not None:
-                    new_geoplace_ids.append(geoplace_id)
-                    if geoplace_id not in existing_geoplace_ids:
-                        self.insert_cross_record("records_x_geoplace", "geoplace", geoplace_id, record["record_id"])
-                        modified_upstream = True
-
-            for eid in existing_geoplace_ids:
-                if eid not in new_geoplace_ids:
-                    self.delete_one_related_record("records_x_geoplace", eid, record["record_id"])
-                    modified_upstream = True
-
+        # crdc
         if "crdc" in record:
-            existing_crdc_recs = self.get_multiple_records("records_x_crdc", "*", "record_id",
-                                                               record["record_id"])
+            existing_crdc_recs = self.get_multiple_records("records_x_crdc", "*", "record_id", record["record_id"])
             existing_crdc_ids = [e["crdc_id"] for e in existing_crdc_recs]
             new_crdc_ids = []
             crdc_key_list = ["crdc_code", "crdc_group_en", "crdc_group_fr", "crdc_class_en", "crdc_class_fr", "crdc_field_en", "crdc_field_fr"]
             for crdc in record["crdc"]:
+                all_crdc_keys_found = True
                 for key in crdc_key_list:
                     if key not in crdc:
-                        continue
-                crdc_id = self.get_single_record_id("crdc", crdc["crdc_code"])
-                extras = crdc.copy()
-                extras.pop("crdc_code")
-                if crdc_id is not None:
-                    # check if the existing CRDC entry matches - if not, update
-                    crdc_record = self.get_multiple_records("crdc", "*", "crdc_id", crdc_id)[0]
-                    for key in crdc_key_list:
-                        if crdc[key] != crdc_record[key]:
-                            self.update_row_generic("crdc", crdc_id, extras)
-                            modified_upstream = True
-                            break
-                if crdc_id is None:
-                    crdc_id = self.insert_related_record("crdc", crdc["crdc_code"], **extras)
-                    modified_upstream = True
-                if crdc_id is not None:
-                    new_crdc_ids.append(crdc_id)
-                    if crdc_id not in existing_crdc_ids:
-                        self.insert_cross_record("records_x_crdc", "crdc", crdc_id, record["record_id"])
+                        all_crdc_keys_found = False
+                        break
+                if all_crdc_keys_found:
+                    crdc_id = self.get_single_record_id("crdc", crdc["crdc_code"])
+                    extras = crdc.copy()
+                    extras.pop("crdc_code")
+                    if crdc_id is not None:
+                        # check if the existing CRDC entry matches - if not, update
+                        crdc_record = self.get_multiple_records("crdc", "*", "crdc_id", crdc_id)[0]
+                        for key in crdc_key_list:
+                            if crdc[key] != crdc_record[key]:
+                                self.update_row_generic("crdc", crdc_id, extras)
+                                modified_upstream = True
+                                break
+                    if crdc_id is None:
+                        crdc_id = self.insert_related_record("crdc", crdc["crdc_code"], **extras)
                         modified_upstream = True
-
+                    if crdc_id is not None:
+                        new_crdc_ids.append(crdc_id)
+                        if crdc_id not in existing_crdc_ids:
+                            self.insert_cross_record("records_x_crdc", "crdc", crdc_id, record["record_id"])
+                            modified_upstream = True
             for eid in existing_crdc_ids:
                 if eid not in new_crdc_ids:
                     records_x_crdc_id = \
                         self.get_multiple_records("records_x_crdc", "records_x_crdc_id", "record_id",
                                                   record["record_id"], " and crdc_id='"
                                                   + str(eid) + "'")[0]["records_x_crdc_id"]
-                    self.delete_row_generic("records_x_crdc", "records_x_crdc_id", records_x_crdc_id)
+                    self.delete_rows("records_x_crdc", "records_x_crdc_id", records_x_crdc_id)
                     modified_upstream = True
 
-        if "geofiles" in record:
-            existing_geofile_recs = self.get_multiple_records("geofile", "*", "record_id",
-                                                           record["record_id"])
-            existing_geofile_ids = [e["geofile_id"] for e in existing_geofile_recs]
-            new_geofile_ids = []
-            for geofile in record["geofiles"]:
-                if "filename" in geofile and "uri" in geofile:
-                    extras = {"filename": geofile["filename"], "uri": geofile["uri"]}
-                    geofile_id = self.get_single_record_id("geofile", record["record_id"], **extras)
-                    if geofile_id is None:
-                        geofile_id = self.insert_related_record("geofile", record["record_id"], **extras)
-                        modified_upstream = True
-                    if geofile_id is not None:
-                        new_geofile_ids.append(geofile_id)
-            # Remove any existing files that aren't also in the new files
-            for eid in existing_geofile_ids:
-                if eid not in new_geofile_ids:
-                    self.delete_row_generic("geofile", "geofile_id", eid)
-                    modified_upstream = True
-
+        # domain metadata
+        existing_metadata_recs = self.get_multiple_records("domain_metadata", "*", "record_id", record["record_id"])
+        existing_metadata_ids = [e["metadata_id"] for e in existing_metadata_recs]
         if len(domain_metadata) > 0:
-            existing_metadata_recs = self.get_multiple_records("domain_metadata", "*", "record_id",
-                                                              record["record_id"])
-            existing_metadata_ids = [e["metadata_id"] for e in existing_metadata_recs]
             new_metadata_ids = []
             for field_uri in domain_metadata:
                 field_pieces = field_uri.split("#")
@@ -1094,11 +871,14 @@ class DBInterface:
                         metadata_id = self.insert_related_record("domain_metadata", schema_id, **extras)
                     if metadata_id is not None:
                         new_metadata_ids.append(metadata_id)
-
             for eid in existing_metadata_ids:
                 if eid not in new_metadata_ids:
-                    self.delete_row_generic("domain_metadata", "metadata_id", eid)
+                    self.delete_rows("domain_metadata", "metadata_id", eid)
                     modified_upstream = True
+        elif existing_metadata_recs:
+            for eid in existing_metadata_ids:
+                self.delete_rows("domain_metadata", "metadata_id", eid)
+                modified_upstream = True
 
         if modified_upstream:
             self.update_record_upstream_modified(record)
@@ -1165,11 +945,15 @@ class DBInterface:
         return None
 
     def check_lat(self,lat):
+        if isinstance(lat, str):
+            lat = float(lat)
         if lat > 90 or lat < -90:
             return False
         return True
 
     def check_long(self,long):
+        if isinstance(long, str):
+            long = float(long)
         if long > 180 or long < -180:
             return False
         return True
