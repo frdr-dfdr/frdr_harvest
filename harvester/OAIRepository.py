@@ -269,14 +269,16 @@ class OAIRepository(HarvestRepository):
             # Add creators and affiliations from full XML
             record["creator"] = []
             record["affiliation"] = []
-            for creator_xml in list(frdr_xml.find("{http://datacite.org/schema/kernel-4}creators")):
-                record["creator"].append(creator_xml.find("{http://datacite.org/schema/kernel-4}creatorName").text)
-                for affiliation_xml in creator_xml.findall("{http://datacite.org/schema/kernel-4}affiliation"):
-                    if affiliation_xml.get("affiliationIdentifier"):
-                        record["affiliation"].append({"affiliation_name": affiliation_xml.text,
-                                                      "affiliation_ror": affiliation_xml.get("affiliationIdentifier")})
-                    else:
-                        record["affiliation"].append(affiliation_xml.text)
+
+            if frdr_xml.find("{http://datacite.org/schema/kernel-4}creators"):
+                for creator_xml in list(frdr_xml.find("{http://datacite.org/schema/kernel-4}creators")):
+                    record["creator"].append(creator_xml.find("{http://datacite.org/schema/kernel-4}creatorName").text)
+                    for affiliation_xml in creator_xml.findall("{http://datacite.org/schema/kernel-4}affiliation"):
+                        if affiliation_xml.get("affiliationIdentifier"):
+                            record["affiliation"].append({"affiliation_name": affiliation_xml.text,
+                                                          "affiliation_ror": affiliation_xml.get("affiliationIdentifier")})
+                        else:
+                            record["affiliation"].append(affiliation_xml.text)
 
             if "dateissued" in record:
                 record["pub_date"] = record["dateissued"]
