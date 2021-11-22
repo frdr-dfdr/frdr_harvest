@@ -73,7 +73,7 @@ class DataCiteRepository(HarvestRepository):
             return True
 
         except Exception as e:
-            self.logger.error("Updating DataCite Repository failed: {}".format(e))
+            self.logger.error("Updating DataCite Repository failed: {} {}".format(type(e).__name__, e))
             self.error_count = self.error_count + 1
             if self.error_count < self.abort_after_numerrors:
                 return True
@@ -226,7 +226,7 @@ class DataCiteRepository(HarvestRepository):
                 datacite_record = json.loads(item_response.text)["data"]
             except Exception as e:
                 # Exception means this URL was not found
-                self.logger.error("Fetching record {} failed: {}".format(record_url, e))
+                self.logger.error("Fetching record {} failed: {} {}".format(record_url, type(e).__name__, e))
                 return True
             oai_record = self.format_datacite_to_oai(datacite_record)
             if oai_record:
@@ -240,7 +240,7 @@ class DataCiteRepository(HarvestRepository):
                     self.db.touch_record(record)
             return True
         except Exception as e:
-            self.logger.error("Updating record {} failed: {}".format(record['local_identifier'], e))
+            self.logger.error("Updating record {} failed: {} {}".format(record['local_identifier'], type(e).__name__, e))
             if self.dump_on_failure == True:
                 try:
                     print(datacite_record)

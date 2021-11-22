@@ -106,7 +106,7 @@ class CSWRepository(HarvestRepository):
         try:
             self.cswrepo.getrecordbyid(id=[record['local_identifier']])
         except Exception as e:
-            self.logger.error("Unable to update record: {}".format(record['local_identifier']))
+            self.logger.error("Unable to update record {}: {} {}".format(record['local_identifier'], type(e).__name__, e))
             self.db.delete_record(record)
             return False
 
@@ -122,6 +122,7 @@ class CSWRepository(HarvestRepository):
                 try:
                     self.db.write_record(oai_record, self)
                 except Exception as e:
+                    self.logger.error("Updating record {} failed: {} {}".format(record['local_identifier'], type(e).__name__, e))
                     if self.dump_on_failure == True:
                         try:
                             print(csw_record)

@@ -175,7 +175,7 @@ class OAIRepository(HarvestRepository):
 
                 # Use the header id for the database key (needed later for OAI GetRecord calls)
                 metadata["identifier"] = record.header.identifier
-                oai_record = self.unpack_oai_metadata(metadata)
+                oai_record = self.unpack_oai_metadata(metadata, record.xml)
                 self.domain_metadata = self.find_domain_metadata(metadata)
                 self.db.write_record(oai_record, self)
                 item_count = item_count + 1
@@ -186,19 +186,18 @@ class OAIRepository(HarvestRepository):
                                                                            (item_count / tdelta)))
 
             except AttributeError:
-                # probably not a valid OAI record
-                # Islandora throws this for non-object directories
+                # FIXME - cIRcle throws this error for 2 records on fresh harvest (2021-09-27)
                 self.logger.debug("AttributeError while working on item {}".format(item_count))
 
             except StopIteration:
                 break
 
             except Exception as e:
-                self.logger.debug("Exception while working on item {}: {}".format(item_count, e))
+                self.logger.debug("Exception while working on item {}: {} {}".format(item_count, type(e).__name__, e))
 
         self.logger.info("Processed {} items in feed".format(item_count))
 
-    def unpack_oai_metadata(self, record):
+    def unpack_oai_metadata(self, record, record_xml):
         record["pub_date"] = record.get("date")
 
         if self.metadataprefix.lower() == "ddi":
@@ -241,22 +240,45 @@ class OAIRepository(HarvestRepository):
 
         # Parse FRDR records
         if self.metadataprefix.lower() == "frdr":
-            if "https://www.frdr-dfdr.ca/schema/1.0/#crdc" in record:
-                record["crdc"] = []
-                crdc_index = 0
-                while crdc_index < len(record["https://www.frdr-dfdr.ca/schema/1.0/#crdcCode"]):
-                    en_index = crdc_index*2
-                    fr_index = en_index + 1
-                    record["crdc"].append({
-                        "crdc_code": record["https://www.frdr-dfdr.ca/schema/1.0/#crdcCode"][crdc_index],
-                        "crdc_group_en": record["https://www.frdr-dfdr.ca/schema/1.0/#crdcGroup"][en_index],
-                        "crdc_group_fr": record["https://www.frdr-dfdr.ca/schema/1.0/#crdcGroup"][fr_index],
-                        "crdc_class_en": record["https://www.frdr-dfdr.ca/schema/1.0/#crdcClass"][en_index],
-                        "crdc_class_fr": record["https://www.frdr-dfdr.ca/schema/1.0/#crdcClass"][fr_index],
-                        "crdc_field_en": record["https://www.frdr-dfdr.ca/schema/1.0/#crdcField"][en_index],
-                        "crdc_field_fr": record["https://www.frdr-dfdr.ca/schema/1.0/#crdcField"][fr_index],
-                    })
-                    crdc_index += 1
+            frdr_xml = record_xml.find("{http://www.openarchives.org/OAI/2.0/}metadata").find("{https://www.frdr-dfdr.ca/schema/1.0/}frdr")
+
+            # Add CRDC from full XML
+            record["crdc"] = []
+            for crdc_xml in frdr_xml.findall("{https://www.frdr-dfdr.ca/schema/1.0/}crdc"):
+                crdc_entry = {}
+                crdc_entry["crdc_code"] = crdc_xml.find("{https://www.frdr-dfdr.ca/schema/1.0/}crdcCode").text
+                for crdc_group in crdc_xml.findall("{https://www.frdr-dfdr.ca/schema/1.0/}crdcGroup"):
+                    if crdc_group.get("{http://www.w3.org/XML/1998/namespace}lang") == "en":
+                        crdc_entry["crdc_group_en"] = crdc_group.text
+                    elif crdc_group.get("{http://www.w3.org/XML/1998/namespace}lang") == "fr":
+                        crdc_entry["crdc_group_fr"] = crdc_group.text
+                for crdc_class in crdc_xml.findall("{https://www.frdr-dfdr.ca/schema/1.0/}crdcClass"):
+                    if crdc_class.get("{http://www.w3.org/XML/1998/namespace}lang") == "en":
+                        crdc_entry["crdc_class_en"] = crdc_class.text
+                    elif crdc_class.get("{http://www.w3.org/XML/1998/namespace}lang") == "fr":
+                        crdc_entry["crdc_class_fr"] = crdc_class.text
+                for crdc_field in crdc_xml.findall("{https://www.frdr-dfdr.ca/schema/1.0/}crdcField"):
+                    if crdc_field.get("{http://www.w3.org/XML/1998/namespace}lang") == "en":
+                        crdc_entry["crdc_field_en"] = crdc_field.text
+                    elif crdc_field.get("{http://www.w3.org/XML/1998/namespace}lang") == "fr":
+                        crdc_entry["crdc_field_fr"] = crdc_field.text
+                record["crdc"].append(crdc_entry)
+            if len(record["crdc"]) == 0:
+                record.pop("crdc")
+
+            # Add creators and affiliations from full XML
+            record["creator"] = []
+            record["affiliation"] = []
+
+            if frdr_xml.find("{http://datacite.org/schema/kernel-4}creators"):
+                for creator_xml in list(frdr_xml.find("{http://datacite.org/schema/kernel-4}creators")):
+                    record["creator"].append(creator_xml.find("{http://datacite.org/schema/kernel-4}creatorName").text)
+                    for affiliation_xml in creator_xml.findall("{http://datacite.org/schema/kernel-4}affiliation"):
+                        if affiliation_xml.get("affiliationIdentifier"):
+                            record["affiliation"].append({"affiliation_name": affiliation_xml.text,
+                                                          "affiliation_ror": affiliation_xml.get("affiliationIdentifier")})
+                        else:
+                            record["affiliation"].append(affiliation_xml.text)
 
             if "dateissued" in record:
                 record["pub_date"] = record["dateissued"]
@@ -271,12 +293,14 @@ class OAIRepository(HarvestRepository):
                         place["province_state"] = place_split[2]
                         place["city"] = place_split[1]
                         place["other"] = place_split[0]
+                        # FIXME replace placeholder "-" for consistency with Dataverse
                     else:
                         place = {"place_name": geo_place}
                     if place not in record["geoplaces"]:
                         record["geoplaces"].append(place)
 
             if "http://datacite.org/schema/kernel-4#geolocationPoint" in record:
+                # FIXME look into why OAI is returning duplicate points
                 record["geopoints"] = []
                 for geopoint in record["http://datacite.org/schema/kernel-4#geolocationPoint"]:
                     point_split = geopoint.split()
@@ -524,6 +548,9 @@ class OAIRepository(HarvestRepository):
 
     @rate_limited(5)
     def _update_record(self, record):
+        # FIXME this function is never called for FRDR repos (collections), since repo_refresh_days = 0
+        #  but we might be relying on logic from here for FRDR repos?
+
         #self.logger.debug("Updating OAI record {}".format(record["local_identifier"]))
 
         try:
@@ -543,9 +570,9 @@ class OAIRepository(HarvestRepository):
                 metadata["date"] = single_record.header.datestamp
 
             metadata["identifier"] = single_record.header.identifier
-            metadata["geodisy_harvested"] = single_record.get("geodisy_harvested", 0)
-            metadata["fizes_size"] = single_record.get("files_size", 0)
-            oai_record = self.unpack_oai_metadata(metadata)
+            metadata["geodisy_harvested"] = single_record.get("geodisy_harvested", 0) # FIXME exception thrown here, FRDRRecord does not have "get"
+            metadata["fizes_size"] = single_record.get("files_size", 0) # FIXME this would also thrown an exception if it were reachable
+            oai_record = self.unpack_oai_metadata(metadata, record.xml)
             self.domain_metadata = self.find_domain_metadata(metadata)
             if oai_record is None:
                 self.db.delete_record(record)
@@ -559,8 +586,8 @@ class OAIRepository(HarvestRepository):
             return True
 
         except Exception as e:
-            self.logger.error("Updating item failed (repo_id:{}, oai_id:{}): {}".format(self.repository_id,
-                                                                                        record["local_identifier"], e))
+            self.logger.error("Updating item failed (repo_id:{}, oai_id:{}): {} {}".format(self.repository_id,
+                                                                                        record["local_identifier"], type(e).__name__, e))
             if self.dump_on_failure == True:
                 try:
                     print(single_record.metadata)
