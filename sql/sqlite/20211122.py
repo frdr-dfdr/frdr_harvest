@@ -41,6 +41,6 @@ class Migration:
                 self.db.update_records_raw_query("update records set record_uuid='{}' where record_id={};".format(new_uuid,str(record["record_id"])))
 
         for tablename in self.tables_to_update:
-            self.db.update_records_raw_query("""update {} set record_uuid=records.record_uuid from records
-                where records.record_id = {}.record_id;""".format(tablename,new_uuid,str(record["record_id"]),tablename))
+            self.db.update_records_raw_query("""UPDATE {} SET record_uuid = (SELECT record_uuid 
+                FROM records WHERE record_id = {}.record_id)""".format(tablename,tablename))
 
