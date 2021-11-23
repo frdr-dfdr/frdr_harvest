@@ -39,8 +39,6 @@ class Migration:
             # Sanity check to make sure we did not generate the UUID for a blank URL
             if new_uuid != "1b4db7eb-4057-5ddf-91e0-36dec72071f5":
                 self.db.update_records_raw_query("update records set record_uuid='{}' where record_id={};".format(new_uuid,str(record["record_id"])))
-
-        for tablename in self.tables_to_update:
-            self.db.update_records_raw_query("""UPDATE {} SET record_uuid = (SELECT record_uuid 
-                FROM records WHERE record_id = {}.record_id)""".format(tablename,tablename))
+                for tablename in self.tables_to_update:
+                    self.db.update_records_raw_query("""update {} set record_uuid='{}' where record_id={};""".format(tablename,new_uuid,str(record["record_id"])))
 
