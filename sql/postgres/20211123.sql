@@ -59,6 +59,17 @@ CREATE INDEX IF NOT EXISTS geopoint_by_record on geopoint(record_uuid);
 
 COMMIT;
 
+--  geospatial
+
+BEGIN TRANSACTION;
+
+DROP INDEX IF EXISTS geospatial_by_record;
+ALTER TABLE geospatial DROP COLUMN IF EXISTS record_id;
+CREATE INDEX IF NOT EXISTS geospatial_by_record on geospatial(record_uuid);
+
+COMMIT;
+
+
 --  records_x_access
 
 BEGIN TRANSACTION;

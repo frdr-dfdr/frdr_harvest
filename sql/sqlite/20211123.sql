@@ -74,7 +74,7 @@ DROP TABLE descriptions;
 ALTER TABLE descriptions_temp RENAME TO descriptions;
 
 CREATE INDEX descriptions_by_description_hash on descriptions(description_hash);
-CREATE INDEX descriptions_by_record_id on descriptions(record_uuid, language);
+CREATE INDEX descriptions_by_record on descriptions(record_uuid, language);
 
 COMMIT;
 
@@ -189,6 +189,35 @@ DROP TABLE geopoint;
 ALTER TABLE geopoint_temp RENAME TO geopoint;
 
 CREATE INDEX geopoint_by_record on geopoint(record_uuid);
+
+COMMIT;
+
+--  geospatial
+
+BEGIN TRANSACTION;
+
+CREATE TABLE IF NOT EXISTS geospatial_temp (
+    geospatial_id INTEGER PRIMARY KEY NOT NULL,
+    record_uuid TEXT NOT NULL,
+    coordinate_type TEXT,
+    lat NUMERIC,
+    lon NUMERIC
+);
+
+INSERT INTO geospatial_temp SELECT
+    geospatial_id,
+    record_uuid,
+    coordinate_type,
+    lat,
+    lon
+    FROM geospatial;
+
+DROP INDEX IF EXISTS geospatial_by_record;
+
+DROP TABLE geospatial;
+ALTER TABLE geospatial_temp RENAME TO geospatial;
+
+CREATE INDEX geospatial_by_record on geospatial(record_uuid);
 
 COMMIT;
 

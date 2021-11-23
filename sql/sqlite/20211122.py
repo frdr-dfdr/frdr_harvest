@@ -10,7 +10,7 @@ import uuid
 
 class Migration:
     db = None
-    tables_to_update = ["descriptions","domain_metadata","geobbox","geofile","geopoint","records","records_x_access","records_x_affiliations",
+    tables_to_update = ["descriptions","domain_metadata","geobbox","geofile","geopoint","geospatial","records","records_x_access","records_x_affiliations",
         "records_x_crdc","records_x_creators","records_x_geoplace","records_x_publishers","records_x_rights","records_x_subjects","records_x_tags"]
 
     def set_dbinterface(self, p):
