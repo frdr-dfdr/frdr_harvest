@@ -16,20 +16,26 @@ class DataverseRepository(HarvestRepository):
 
     def _crawl(self):
         kwargs = {
-            "repo_id": self.repository_id, "repo_url": self.url, "repo_set": self.set, "repo_name": self.name,
+            "repo_id": self.repository_id,
+            "repo_url": self.url,
+            "repo_set": self.set,
+            "repo_name": self.name,
             "repo_type": "dataverse",
-            "enabled": self.enabled, "repo_thumbnail": self.thumbnail, "item_url_pattern": self.item_url_pattern,
+            "enabled": self.enabled,
+            "repo_thumbnail": self.thumbnail,
+            "item_url_pattern": self.item_url_pattern,
             "abort_after_numerrors": self.abort_after_numerrors,
             "max_records_updated_per_run": self.max_records_updated_per_run,
             "update_log_after_numitems": self.update_log_after_numitems,
             "record_refresh_days": self.record_refresh_days,
-            "repo_refresh_days": self.repo_refresh_days, "homepage_url": self.homepage_url,
+            "repo_refresh_days": self.repo_refresh_days,
+            "homepage_url": self.homepage_url,
             "repo_oai_name": self.repo_oai_name,
-            "dataverses_list": self.dataverses_list # only retrieve these sub-dataverses; defaults to None
+            "dataverses_list": self.dataverses_list # only retrieve these sub-dataverses; defaults to None (which means include all)
         }
         self.repository_id = self.db.update_repo(**kwargs)
 
-        # Use the repo url pattern if item url pattern is not different
+        # Use the repo url pattern if item url pattern is not set
         if self.item_url_pattern is None:
             self.item_url_pattern = self.url
 

@@ -175,11 +175,10 @@ class DBInterface:
                         abort_after_numerrors=?,max_records_updated_per_run=?,update_log_after_numitems=?,
                         record_refresh_days=?,repo_refresh_days=?,homepage_url=?,repo_oai_name=?
                         WHERE repository_id=?"""
-                    update_params = (self.repo_url, self.repo_set, self.repo_name, self.repo_type, self.repo_thumbnail, time.time(),
-                        self.item_url_pattern,
-                        self.enabled, self.abort_after_numerrors, self.max_records_updated_per_run,
-                        self.update_log_after_numitems,
-                        self.record_refresh_days, self.repo_refresh_days, self.homepage_url, self.repo_oai_name, self.repo_id)
+                    update_params = (self.repo_url, self.repo_set, self.repo_name, self.repo_type, self.repo_thumbnail,
+                        time.time(), self.item_url_pattern, self.enabled, self.abort_after_numerrors,
+                        self.max_records_updated_per_run, self.update_log_after_numitems, self.record_refresh_days,
+                        self.repo_refresh_days, self.homepage_url, self.repo_oai_name, self.repo_id)
                     cur.execute(self._prep(update_sql), update_params)
                 except self.dblayer.IntegrityError as e:
                     # record already present in repo
@@ -197,10 +196,9 @@ class DBInterface:
                             record_refresh_days,repo_refresh_days,homepage_url,repo_oai_name)
                             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING repository_id"""
                         insert_params = (self.repo_url, self.repo_set, self.repo_name, self.repo_type, self.repo_thumbnail,
-                            time.time(), self.item_url_pattern,
-                            self.enabled, self.abort_after_numerrors, self.max_records_updated_per_run,
-                            self.update_log_after_numitems,
-                            self.record_refresh_days, self.repo_refresh_days, self.homepage_url, self.repo_oai_name)
+                            time.time(), self.item_url_pattern, self.enabled, self.abort_after_numerrors,
+                            self.max_records_updated_per_run, self.update_log_after_numitems, self.record_refresh_days,
+                            self.repo_refresh_days, self.homepage_url, self.repo_oai_name)
                         cur.execute(self._prep(insert_sql), insert_params)
                         self.repo_id = int(cur.fetchone()['repository_id'])
 
@@ -212,10 +210,9 @@ class DBInterface:
                             homepage_url,repo_oai_name)
                             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"""
                         insert_params = (self.repo_url, self.repo_set, self.repo_name, self.repo_type, self.repo_thumbnail,
-                            time.time(), self.item_url_pattern,
-                            self.enabled, self.abort_after_numerrors, self.max_records_updated_per_run,
-                            self.update_log_after_numitems,
-                            self.record_refresh_days, self.repo_refresh_days, self.homepage_url, self.repo_oai_name)
+                            time.time(), self.item_url_pattern, self.enabled, self.abort_after_numerrors,
+                            self.max_records_updated_per_run, self.update_log_after_numitems, self.record_refresh_days,
+                            self.repo_refresh_days, self.homepage_url, self.repo_oai_name)
                         cur.execute(self._prep(insert_sql), insert_params)
                         self.repo_id = int(cur.lastrowid)
 
@@ -230,6 +227,8 @@ class DBInterface:
         if repo_set is not None:
             extrawhere = "and repository_set='{}'".format(repo_set)
         records = self.get_multiple_records("repositories", "repository_id", "repository_url", repo_url, extrawhere)
+        if len(records) > 1:
+            self.logger.error("Multiple repositories found for repository_url: {}".format(repo_url))
         for record in records:
             returnvalue = int(record['repository_id'])
         # If not found, look for insecure version of the url, it may have just changed to https on this pass
@@ -294,9 +293,10 @@ class DBInterface:
     def update_last_crawl(self, repo_id):
         con = self.getConnection()
         with con:
+            update_sql = "update repositories set last_crawl_timestamp = ? where repository_id = ?"
+            update_params = (int(time.time()), repo_id)
             cur = self.getRowCursor()
-            cur.execute(self._prep("update repositories set last_crawl_timestamp = ? where repository_id = ?"),
-                        (int(time.time()), repo_id))
+            cur.execute(self._prep(update_sql), update_params)
 
     def set_repo_enabled(self, repo_id, enabled):
         cur = self.getRowCursor()
@@ -309,10 +309,11 @@ class DBInterface:
         if record[recordidcolumn] == "":
             return False
         with con:
+            delete_sql = "UPDATE records set deleted = 1, modified_timestamp = ?, upstream_modified_timestamp = ? where " + recordidcolumn + "=?"
+            delete_params = (time.time(), time.time(), record[recordidcolumn])
             cur = self.getRowCursor()
             try:
-                cur.execute(self._prep("UPDATE records set deleted = 1, modified_timestamp = ?, upstream_modified_timestamp = ? where " + recordidcolumn + "=?"),
-                            (time.time(), time.time(), record[recordidcolumn]))
+                cur.execute(self._prep(delete_sql), delete_params)
             except Exception as e:
                 self.logger.error("Unable to mark as deleted record {}".format(record['local_identifier']))
                 return False
@@ -347,24 +348,25 @@ class DBInterface:
         with con:
             cur = self.getRowCursor()
             try:
-                sqlstring = "DELETE from {} where {}=? {}".format(tablename, columnname, extrawhere)
-                cur.execute(self._prep(sqlstring), (column_value,))
+                delete_sql = "DELETE from {} where {}=? {}".format(tablename, columnname, extrawhere)
+                delete_params = (column_value,)
+                cur.execute(self._prep(delete_sql), delete_params)
             except Exception as e:
-                self.logger.error("delete_rows() failed with sqlstring \"{}\": {}".format(sqlstring, e))
+                self.logger.error("delete_rows() failed with sqlstring \"{}\": {}".format(delete_sql, e))
                 raise e
         return True
 
     def update_row_generic(self, tablename, row_id, updates, extrawhere=""):
         idcolumn = self.get_table_id_column(tablename)
-        sqlstring = "UPDATE {} set {} where {}=? {}".format(tablename, "=?, ".join(str(k) for k in list(updates.keys())) + "=?", idcolumn, extrawhere)
-        values = list(updates.values())
-        values.append(row_id)
+        update_sql = "UPDATE {} set {} where {}=? {}".format(tablename, "=?, ".join(str(k) for k in list(updates.keys())) + "=?", idcolumn, extrawhere)
+        update_params = list(updates.values())
+        update_params.append(row_id)
 
         con = self.getConnection()
         with con:
             cur = self.getRowCursor()
             try:
-                cur.execute(self._prep(sqlstring), values )
+                cur.execute(self._prep(update_sql), update_params )
             except Exception as e:
                 return False
             return True
@@ -466,7 +468,6 @@ class DBInterface:
         return records
 
     def get_records_raw_query(self, sqlstring):
-        #self.logger.info("==> Query: {}".format(sqlstring))
         records = []
         con = self.getConnection()
         with con:
@@ -782,8 +783,6 @@ class DBInterface:
                     WHERE """ + recordidcolumn + """ = ?"""
                 update_params = (record["title"], record["title_fr"], record["pub_date"], record["series"], time.time(),
                      source_url, 0, record["identifier"], record["item_url"], record.get("files_size", 0), record.get("files_altered",1), record[recordidcolumn])
-                #self.logger.info("==> SQL: {}".format(update_sql))
-                #self.logger.info("==> PARAMS: {}".format(json.dumps(update_params)))
                 cur = self.getRowCursor()
                 cur.execute(self._prep(update_sql), update_params)
 
@@ -956,10 +955,11 @@ class DBInterface:
         recordidcolumn = self.get_table_id_column("records")
         con = self.getConnection()
         with con:
+            touch_sql = "UPDATE records set modified_timestamp = ? where " + recordidcolumn + " = ?"
+            touch_params = (time.time(), record[recordidcolumn])
             cur = self.getDictCursor()
             try:
-                cur.execute(self._prep("UPDATE records set modified_timestamp = ? where " + recordidcolumn + " = ?"),
-                            (time.time(), record[recordidcolumn]))
+                cur.execute(self._prep(touch_sql), touch_params)
             except Exception as e:
                 self.logger.error("Unable to update modified_timestamp for record {}".format(record[recordidcolumn]))
                 return False
@@ -998,14 +998,14 @@ class DBInterface:
         recordidcolumn = self.get_table_id_column("records")
         con = self.getConnection()
         with con:
+            update_sql = "UPDATE records set upstream_modified_timestamp = ?, geodisy_harvested = 0 where " + recordidcolumn + " = ?"
+            update_params = (time.time(), record[recordidcolumn])
             cur = self.getDictCursor()
             try:
-                cur.execute(self._prep("UPDATE records set upstream_modified_timestamp = ?, geodisy_harvested = 0 where " + recordidcolumn + " = ?")
-                            , (time.time(), record[recordidcolumn]))
+                cur.execute(self._prep(update_sql), update_params)
             except self.dblayer.IntegrityError as e:
                 self.logger.error("Unable to update modified_timestamp for record ? dur to error creating"
                                   " record header: ?", record[recordidcolumn], e)
-
         return None
 
     def check_lat(self,lat):
