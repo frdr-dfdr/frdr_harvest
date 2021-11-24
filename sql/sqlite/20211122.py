@@ -24,8 +24,16 @@ class Migration:
         records_to_update = self.db.get_records_raw_query(select_sql)
 
         for row in records_to_update:
-            record = (dict(zip(['record_id', 'source_url', 'deleted', 'local_identifier', 'item_url', 
-                 'repository_url', 'item_url_pattern'], row)))
+            # Convert row object to a modifiable dict
+            record = {
+                "record_id": row["record_id"],
+                "source_url": row["source_url"],
+                "deleted": row["deleted"],
+                "local_identifier": row["local_identifier"],
+                "item_url": row["item_url"],
+                "repository_url": row["repository_url"],
+                "item_url_pattern": row["item_url_pattern"]
+            }
 
             if record["item_url"] == "":
                 record["item_url"] = self.db.construct_local_url(record)
