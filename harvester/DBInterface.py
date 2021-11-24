@@ -22,6 +22,8 @@ class DBInterface:
             self.dblayer = __import__('sqlite3')
             global Row
             from sqlite3 import Row
+            if os.path.exists("data/globus_oai.db") and self.dbname != "data/globus_oai.db":
+                os.rename("data/globus_oai.db", self.dbname)
             if os.name == "posix":
                 try:
                     os.chmod(self.dbname, 0o664)
