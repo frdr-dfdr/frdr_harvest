@@ -30,7 +30,7 @@ class SocrataRepository(HarvestRepository):
 
         item_count = 0
         for rec in records:
-            self.db.write_header(rec["resource"]["id"], self.repository_id)
+            self.db.write_header(rec["resource"]["id"], self.item_url_pattern, self.repository_id)
             item_count = item_count + 1
             if (item_count % self.update_log_after_numitems == 0):
                 tdelta = time.time() - self.tstart + 0.1

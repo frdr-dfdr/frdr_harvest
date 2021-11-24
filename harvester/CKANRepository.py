@@ -67,7 +67,7 @@ class CKANRepository(HarvestRepository):
             if not self.ckan_include_identifier_pattern or self.ckan_include_identifier_pattern in ckan_identifier: # Yukon
                 if self.ckan_strip_from_identifier:
                     ckan_identifier = ckan_identifier.replace(self.ckan_strip_from_identifier,"")
-                self.db.write_header(ckan_identifier, self.repository_id)
+                self.db.write_header(ckan_identifier, self.item_url_pattern, self.repository_id)
                 item_count = item_count + 1
                 if (item_count % self.update_log_after_numitems == 0):
                     tdelta = time.time() - self.tstart + 0.1

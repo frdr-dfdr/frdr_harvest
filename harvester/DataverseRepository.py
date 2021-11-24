@@ -1,6 +1,7 @@
 from harvester.HarvestRepository import HarvestRepository
 import requests
 import time
+import json
 
 
 class DataverseRepository(HarvestRepository):
@@ -28,6 +29,10 @@ class DataverseRepository(HarvestRepository):
         }
         self.repository_id = self.db.update_repo(**kwargs)
 
+        # Use the repo url pattern if item url pattern is not different
+        if self.item_url_pattern is None:
+            self.item_url_pattern = self.url
+
         try:
             dataverse_id = ":root" # If set is not specified, get the entire dataverse (:root)
             if self.set != "":
@@ -47,29 +52,30 @@ class DataverseRepository(HarvestRepository):
     def get_datasets_from_dataverse_id(self, dataverse_id, dataverse_hierarchy, item_count, dataverses_list=None):
         response = requests.get(self.url.replace("%id%", str(dataverse_id)), verify=False)
         records = response.json()
-        for record in records["data"]:
-            if record["type"] == "dataset":
-                item_identifier = record["id"]
-                combined_identifier = str(item_identifier)
-                dataverse_hierarchy_split = [x.strip() for x in dataverse_hierarchy.split("_")]
-                if len(dataverse_hierarchy_split) > 1:
-                    # Write dataverse_hierarchy - minus the repository id - plus identifier as local_identifier
-                    dataverse_hierarchy_string = "_".join(dataverse_hierarchy_split[1:])
-                    combined_identifier = combined_identifier + "_" + dataverse_hierarchy_string
-                self.db.write_header(combined_identifier, self.repository_id)
-                item_count = item_count + 1
-                if (item_count % self.update_log_after_numitems == 0):
-                    tdelta = time.time() - self.tstart + 0.1
-                    self.logger.info("Done {} item headers after {} ({:.1f} items/sec)".format(item_count,self.formatter.humanize(
-                                                                                               tdelta),item_count / tdelta))
-            elif record["type"] == "dataverse":
-                if dataverses_list and record["id"] not in dataverses_list:
-                    # If a dataverses_list is specified, ignore any dataverses not in it
-                    pass
-                else:
-                    # Recursive call to get children of this dataverse
-                    # Append the dataverse id to the overall dataverse_hierarchy
-                    item_count = self.get_datasets_from_dataverse_id(record["id"], dataverse_hierarchy + "_" + str(record["id"]), item_count)
+        if "data" in records:
+            for record in records["data"]:
+                if record["type"] == "dataset":
+                    item_identifier = record["id"]
+                    combined_identifier = str(item_identifier)
+                    dataverse_hierarchy_split = [x.strip() for x in dataverse_hierarchy.split("_")]
+                    if len(dataverse_hierarchy_split) > 1:
+                        # Write dataverse_hierarchy - minus the repository id - plus identifier as local_identifier
+                        dataverse_hierarchy_string = "_".join(dataverse_hierarchy_split[1:])
+                        combined_identifier = combined_identifier + "_" + dataverse_hierarchy_string
+                    self.db.write_header(combined_identifier, self.item_url_pattern, self.repository_id)
+                    item_count = item_count + 1
+                    if (item_count % self.update_log_after_numitems == 0):
+                        tdelta = time.time() - self.tstart + 0.1
+                        self.logger.info("Done {} item headers after {} ({:.1f} items/sec)".format(
+                            item_count,self.formatter.humanize(tdelta),item_count / tdelta))
+                elif record["type"] == "dataverse":
+                    if dataverses_list and record["id"] not in dataverses_list:
+                        # If a dataverses_list is specified, ignore any dataverses not in it
+                        pass
+                    else:
+                        # Recursive call to get children of this dataverse
+                        # Append the dataverse id to the overall dataverse_hierarchy
+                        item_count = self.get_datasets_from_dataverse_id(record["id"], dataverse_hierarchy + "_" + str(record["id"]), item_count)
         return item_count
 
     def get_dataverse_name_from_dataverse_id(self, dataverse_id):
@@ -245,6 +251,7 @@ class DataverseRepository(HarvestRepository):
             identifier_split = record['local_identifier'].split("_")
             item_identifier = identifier_split[0]
             record_url = self.url.replace("dataverses/%id%/contents", "datasets/") + item_identifier
+            #self.logger.info("Record URL: {}".format(record_url))
             try:
                 item_response = requests.get(record_url)
                 dataverse_record = item_response.json()["data"]
