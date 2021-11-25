@@ -39,7 +39,8 @@ class Migration:
                 record["item_url"] = self.db.construct_local_url(record)
 
             if record["item_url"] is None:
-                print("Skipping record {} because item_url could not be determined".format(record["record_id"]))
+                print("Deleting record {} {} from {}".format(record["record_id"], record["local_identifier"], record["repository_url"]))
+                self.db.delete_record(record)
                 continue
 
             new_uuid = self.db.get_uuid(record["item_url"])
@@ -50,3 +51,4 @@ class Migration:
                 for tablename in self.tables_to_update:
                     self.db.update_records_raw_query("""update {} set record_uuid='{}' where record_id={};""".format(tablename,new_uuid,str(record["record_id"])))
 
+        self.db.purge_deleted_records()
