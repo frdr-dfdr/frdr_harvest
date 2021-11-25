@@ -1,7 +1,7 @@
 """FRDR Harvester
 
 Usage:
-  harvester.py [--openrefine-import | --onlyharvest | --onlyexport | --init] [--only-new-records] [--dump-on-failure] [--export-filepath=<file>] [--export-format=<format>] [--repository-id=<id>] [--openrefine-csv=<file>]
+  harvest.py [--openrefine-import | --onlyharvest | --onlyexport | --init] [--only-new-records] [--dump-on-failure] [--export-filepath=<file>] [--export-format=<format>] [--repository-id=<id>] [--openrefine-csv=<file>]
 
 Options:
   --openrefine-import       Don't harvest or export normally; import data from OpenRefine.

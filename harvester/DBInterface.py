@@ -37,7 +37,7 @@ class DBInterface:
         else:
             raise ValueError('Database type must be sqlite or postgres in config file')
 
-        con = self.getConnection()
+        self.getConnection()
         cur = self.getRowCursor()
 
         # This table must always exist
@@ -137,7 +137,7 @@ class DBInterface:
     def get_setting(self, setting_name):
         # Get an internal setting
         setting_value = 0
-        con = self.getConnection()
+        self.getConnection()
         res = None
         cur = self.getDictCursor()
         cur.execute(
@@ -584,7 +584,9 @@ class DBInterface:
 
         return rec[recordidcolumn]
 
-    def update_related_metadata(self, record, val_table, val_fieldname, extras={}):
+    def update_related_metadata(self, record, val_table, val_fieldname, extras=None):
+        if extras is None:
+            extras = {}
         extrawhere = ""
         modified_upstream = False
         val_idcol = self.get_table_id_column(val_table)
