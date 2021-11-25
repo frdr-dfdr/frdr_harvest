@@ -331,7 +331,7 @@ class DBInterface:
                 "delete_record() failed for record {}: {}".format(record['local_identifier'], e))
             return False
 
-        self.logger.debug("Marked as deleted: record {}".format(record['local_identifier']))
+        self.logger.debug("Marked as deleted: record local_identifier: {}".format(record['local_identifier']))
         return True
 
     def purge_deleted_records(self):
