@@ -27,7 +27,7 @@ pass = $PASSWORD
 ```
 7. Add additional repos (if any) to conf/repos.json and run harvester
 ``` shell
-python3 ./globus_harvester.py --onlyharvest
+python3 ./harvest.py --onlyharvest
 ```
 8. Run search web UI to access harvest results (localhost:8100/admin/):
 ``` shell
