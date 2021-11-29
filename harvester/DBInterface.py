@@ -480,7 +480,6 @@ class DBInterface:
         return records
 
     def update_records_raw_query(self, sqlstring):
-        records = []
         con = self.getConnection()
         with con:
             cur = self.getDictCursor()
@@ -562,7 +561,6 @@ class DBInterface:
         return None
 
     def create_new_record(self, rec, source_url, repo_id):
-        returnvalue = None
         recordidcolumn = self.get_table_id_column("records")
         if rec["item_url"] == "":
             rec["item_url"] = self.construct_local_url(rec)

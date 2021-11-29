@@ -1,5 +1,3 @@
-import uuid
-
 # Migration 20211122: 
 #   - determine UUID for all records and update them
 #   - populate all related tables with UUIDs

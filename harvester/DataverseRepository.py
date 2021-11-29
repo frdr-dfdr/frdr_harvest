@@ -1,7 +1,6 @@
 from harvester.HarvestRepository import HarvestRepository
 import requests
 import time
-import json
 
 
 class DataverseRepository(HarvestRepository):
