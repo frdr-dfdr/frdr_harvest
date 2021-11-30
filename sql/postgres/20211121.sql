@@ -1,0 +1,17 @@
+alter table records add column if not exists record_uuid VARCHAR(36);
+alter table descriptions add column if not exists record_uuid VARCHAR(36);
+alter table domain_metadata add column if not exists record_uuid VARCHAR(36);
+alter table geobbox add column if not exists record_uuid VARCHAR(36);
+alter table geofile add column if not exists record_uuid VARCHAR(36);
+alter table geopoint add column if not exists record_uuid VARCHAR(36);
+alter table geospatial add column if not exists record_uuid VARCHAR(36);
+alter table records add column if not exists record_uuid VARCHAR(36);
+alter table records_x_access add column if not exists record_uuid VARCHAR(36);
+alter table records_x_affiliations add column if not exists record_uuid VARCHAR(36);
+alter table records_x_crdc add column if not exists record_uuid VARCHAR(36);
+alter table records_x_creators add column if not exists record_uuid VARCHAR(36);
+alter table records_x_geoplace add column if not exists record_uuid VARCHAR(36);
+alter table records_x_publishers add column if not exists record_uuid VARCHAR(36);
+alter table records_x_rights add column if not exists record_uuid VARCHAR(36);
+alter table records_x_subjects add column if not exists record_uuid VARCHAR(36);
+alter table records_x_tags add column if not exists record_uuid VARCHAR(36);

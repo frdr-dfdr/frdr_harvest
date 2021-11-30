@@ -42,7 +42,7 @@ class DataCiteRepository(HarvestRepository):
                     page_number += 1
                     for record in response["data"]:
                         item_identifier = record["id"]
-                        self.db.write_header(item_identifier, self.repository_id)
+                        self.db.write_header(item_identifier, self.item_url_pattern, self.repository_id)
                         item_count = item_count + 1
                         if (item_count % self.update_log_after_numitems == 0):
                             tdelta = time.time() - self.tstart + 0.1
@@ -56,7 +56,7 @@ class DataCiteRepository(HarvestRepository):
                         page_number = page_number + 1
                         for record in response["data"]:
                             item_identifier = record["id"]
-                            self.db.write_header(item_identifier, self.repository_id)
+                            self.db.write_header(item_identifier, self.item_url_pattern, self.repository_id)
                             item_count = item_count + 1
                             if (item_count % self.update_log_after_numitems == 0):
                                 tdelta = time.time() - self.tstart + 0.1

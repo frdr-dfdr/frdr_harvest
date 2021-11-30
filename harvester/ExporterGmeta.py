@@ -15,6 +15,7 @@ class ExporterGmeta(Exporter.Exporter):
         self.logger.info("Exporter: generate called for gmeta")
         self.output_buffer = []
         deleted = []
+        recordidcolumn = self.db.get_table_id_column("records")
 
         try:
             lastrun_timestamp = int(self.db.get_setting("last_run_timestamp"))
@@ -25,7 +26,7 @@ class ExporterGmeta(Exporter.Exporter):
         with records_con:
             records_cursor = self.db.getRowCursor()
 
-        records_sql = """SELECT recs.record_id, recs.title, recs.title_fr, recs.pub_date, recs.series, recs.source_url,
+        records_sql = """SELECT recs.""" + recordidcolumn + """, recs.title, recs.title_fr, recs.pub_date, recs.series, recs.source_url,
             recs.deleted, recs.local_identifier, recs.item_url, recs.modified_timestamp,
             repos.repository_url, repos.repository_name, repos.repository_thumbnail, repos.item_url_pattern, repos.last_crawl_timestamp
             FROM records recs, repositories repos WHERE recs.repository_id = repos.repository_id"""
@@ -55,7 +56,7 @@ class ExporterGmeta(Exporter.Exporter):
                 self._write_batch()
 
             record = (dict(zip(
-                ['record_id', 'title', 'title_fr', 'pub_date', 'series', 'source_url', 'deleted', 'local_identifier',
+                [recordidcolumn, 'title', 'title_fr', 'pub_date', 'series', 'source_url', 'deleted', 'local_identifier',
                  'item_url', 'modified_timestamp',
                  'repository_url', 'repository_name', 'repository_thumbnail', 'item_url_pattern',
                  'last_crawl_timestamp'], row)))
@@ -80,7 +81,7 @@ class ExporterGmeta(Exporter.Exporter):
                 litecur = self.db.getDictCursor()
 
                 litecur.execute(self.db._prep("""SELECT geobbox.westLon, geobbox.eastLon, geobbox.northLat, geobbox.southLat
-                                    FROM geobbox WHERE geobbox.record_id=?"""), (record["record_id"],))
+                                    FROM geobbox WHERE geobbox.""" + recordidcolumn + """=?"""), (record[recordidcolumn],))
                 geobboxes = litecur.fetchall()
                 if len(geobboxes) > 0:
                     record["datacite_geoLocationBox"] = []
@@ -91,7 +92,7 @@ class ExporterGmeta(Exporter.Exporter):
                                                                   "southBoundLatitude": float(geobbox["southlat"])})
 
 
-                litecur.execute(self.db._prep("""SELECT geopoint.lat, geopoint.lon FROM geopoint WHERE geopoint.record_id=?"""), (record["record_id"],))
+                litecur.execute(self.db._prep("SELECT geopoint.lat, geopoint.lon FROM geopoint WHERE geopoint." + recordidcolumn + "=?"), (record[recordidcolumn],))
                 geopoints = litecur.fetchall()
                 if len(geopoints) > 0:
                     record["datacite_geoLocationPoint"] = []
@@ -101,7 +102,7 @@ class ExporterGmeta(Exporter.Exporter):
 
                 litecur.execute(self.db._prep("""SELECT geoplace.country, geoplace.province_state, geoplace.city, geoplace.other, geoplace.place_name
                     FROM geoplace JOIN records_x_geoplace on records_x_geoplace.geoplace_id = geoplace.geoplace_id
-                                    WHERE records_x_geoplace.record_id=?"""), (record["record_id"],))
+                                    WHERE records_x_geoplace.""" + recordidcolumn + """=?"""), (record[recordidcolumn],))
                 geoplaces = litecur.fetchall()
                 if len(geoplaces) > 0:
                     record["datacite_geoLocationPlace"] = []
@@ -118,8 +119,8 @@ class ExporterGmeta(Exporter.Exporter):
                 litecur.execute(self.db._prep("""SELECT crdc.crdc_code, crdc.crdc_group_en, crdc.crdc_group_fr, 
                                                     crdc.crdc_class_en, crdc.crdc_class_fr, crdc.crdc_field_en, crdc.crdc_field_fr
                                                     FROM crdc JOIN records_x_crdc on records_x_crdc.crdc_id = crdc.crdc_id
-                                                    WHERE records_x_crdc.record_id=?"""),
-                                (record["record_id"],))
+                                                    WHERE records_x_crdc.""" + recordidcolumn + """=?"""),
+                                (record[recordidcolumn],))
                 crdc_entries = litecur.fetchall()
                 if len(crdc_entries) > 0:
                     record["crdc"] = []
@@ -134,56 +135,56 @@ class ExporterGmeta(Exporter.Exporter):
 
                 # attach the other values to the dict
                 litecur.execute(self.db._prep("""SELECT creators.creator FROM creators JOIN records_x_creators on records_x_creators.creator_id = creators.creator_id
-                    WHERE records_x_creators.record_id=? AND records_x_creators.is_contributor=0 order by records_x_creators_id asc"""),
-                                (record["record_id"],))
+                    WHERE records_x_creators.""" + recordidcolumn + """=? AND records_x_creators.is_contributor=0 order by records_x_creators_id asc"""),
+                                (record[recordidcolumn],))
                 record["dc_contributor_author"] = self._rows_to_list(litecur)
 
                 litecur.execute(self.db._prep("""SELECT affiliations.affiliation FROM affiliations JOIN records_x_affiliations on records_x_affiliations.affiliation_id = affiliations.affiliation_id
-                    WHERE records_x_affiliations.record_id=?"""), (record["record_id"],))
+                    WHERE records_x_affiliations.""" + recordidcolumn + """=?"""), (record[recordidcolumn],))
                 record["datacite_creatorAffiliation"] = self._rows_to_list(litecur)
 
                 litecur.execute(self.db._prep("""SELECT creators.creator FROM creators JOIN records_x_creators on records_x_creators.creator_id = creators.creator_id
-                    WHERE records_x_creators.record_id=? AND records_x_creators.is_contributor=1 order by records_x_creators_id asc"""),
-                                (record["record_id"],))
+                    WHERE records_x_creators.""" + recordidcolumn + """=? AND records_x_creators.is_contributor=1 order by records_x_creators_id asc"""),
+                                (record[recordidcolumn],))
                 record["dc_contributor"] = self._rows_to_list(litecur)
 
                 litecur.execute(self.db._prep("""SELECT subjects.subject FROM subjects JOIN records_x_subjects on records_x_subjects.subject_id = subjects.subject_id
-                    WHERE records_x_subjects.record_id=? and subjects.language='en'"""), (record["record_id"],))
+                    WHERE records_x_subjects.""" + recordidcolumn + """=? and subjects.language='en'"""), (record[recordidcolumn],))
                 record["frdr_subject_en"] = self._rows_to_list(litecur)
 
 
                 litecur.execute(self.db._prep("""SELECT subjects.subject FROM subjects JOIN records_x_subjects on records_x_subjects.subject_id = subjects.subject_id
-                    WHERE records_x_subjects.record_id=? and subjects.language='fr'"""), (record["record_id"],))
+                    WHERE records_x_subjects.""" + recordidcolumn + """=? and subjects.language='fr'"""), (record[recordidcolumn],))
                 record["frdr_subject_fr"] = self._rows_to_list(litecur)
 
                 litecur.execute(self.db._prep("""SELECT publishers.publisher FROM publishers JOIN records_x_publishers on records_x_publishers.publisher_id = publishers.publisher_id
-                    WHERE records_x_publishers.record_id=?"""), (record["record_id"],))
+                    WHERE records_x_publishers.""" + recordidcolumn + """=?"""), (record[recordidcolumn],))
                 record["dc_publisher"] = self._rows_to_list(litecur)
 
                 litecur.execute(self.db._prep("""SELECT rights.rights FROM rights JOIN records_x_rights on records_x_rights.rights_id = rights.rights_id
-                                                       WHERE records_x_rights.record_id=?"""), (record["record_id"],))
+                                                       WHERE records_x_rights.""" + recordidcolumn + """=?"""), (record[recordidcolumn],))
                 record["dc_rights"] = self._rows_to_list(litecur)
 
                 litecur.execute(
-                    self.db._prep("SELECT description FROM descriptions WHERE record_id=? and language='en' "),
-                    (record["record_id"],))
+                    self.db._prep("SELECT description FROM descriptions WHERE " + recordidcolumn + "=? and language='en' "),
+                    (record[recordidcolumn],))
                 record["dc_description_en"] = self._rows_to_list(litecur)
 
                 litecur.execute(
-                    self.db._prep("SELECT description FROM descriptions WHERE record_id=? and language='fr' "),
-                    (record["record_id"],))
+                    self.db._prep("SELECT description FROM descriptions WHERE " + recordidcolumn + "=? and language='fr' "),
+                    (record[recordidcolumn],))
                 record["dc_description_fr"] = self._rows_to_list(litecur)
 
                 litecur.execute(self.db._prep("""SELECT tags.tag FROM tags JOIN records_x_tags on records_x_tags.tag_id = tags.tag_id
-                    WHERE records_x_tags.record_id=? and tags.language = 'en' """), (record["record_id"],))
+                    WHERE records_x_tags.""" + recordidcolumn + """=? and tags.language = 'en' """), (record[recordidcolumn],))
                 record["frdr_keyword_en"] = self._rows_to_list(litecur)
 
                 litecur.execute(self.db._prep("""SELECT tags.tag FROM tags JOIN records_x_tags on records_x_tags.tag_id = tags.tag_id
-                    WHERE records_x_tags.record_id=? and tags.language = 'fr' """), (record["record_id"],))
+                    WHERE records_x_tags.""" + recordidcolumn + """=? and tags.language = 'fr' """), (record[recordidcolumn],))
                 record["frdr_keyword_fr"] = self._rows_to_list(litecur)
 
                 litecur.execute(self.db._prep("""SELECT access.access FROM access JOIN records_x_access on records_x_access.access_id = access.access_id
-                    WHERE records_x_access.record_id=?"""), (record["record_id"],))
+                    WHERE records_x_access.""" + recordidcolumn + """=?"""), (record[recordidcolumn],))
                 record["frdr_access"] = self._rows_to_list(litecur)
 
             with con:
@@ -195,8 +196,9 @@ class ExporterGmeta(Exporter.Exporter):
                     litecur = con.cursor(cursor_factory=DictCursor)
 
                 litecur.execute(self.db._prep(
-                    "SELECT ds.namespace, dm.field_name, dm.field_value FROM domain_metadata dm, domain_schemas ds WHERE dm.schema_id=ds.schema_id and dm.record_id=?"),
-                                (record["record_id"],))
+                    """SELECT ds.namespace, dm.field_name, dm.field_value 
+                    FROM domain_metadata dm, domain_schemas ds WHERE dm.schema_id=ds.schema_id and dm.""" + recordidcolumn + """=?"""),
+                                (record[recordidcolumn],))
                 for row2 in litecur:
                     domain_namespace = str(row2["namespace"])
                     field_name = str(row2["field_name"])
@@ -219,6 +221,7 @@ class ExporterGmeta(Exporter.Exporter):
             record["frdr_series"] = record["series"]
             record["frdr_origin_id"] = record["repository_name"]
             record["frdr_origin_icon"] = record["repository_thumbnail"]
+            gmeta_subject = record[recordidcolumn]
 
             # Concatenate EN and FR into multi-language fields for Globus search
             record["dc_title_multi"] = str(record["dc_title_en"]) + " " + str(record["dc_title_fr"])
@@ -241,7 +244,7 @@ class ExporterGmeta(Exporter.Exporter):
             record.pop("local_identifier", None)
             record.pop("modified_timestamp", None)
             record.pop("pub_date", None)
-            record.pop("record_id", None)
+            record.pop(recordidcolumn, None)
             record.pop("repository_name", None)
             record.pop("repository_thumbnail", None)
             record.pop("repository_url", None)
@@ -251,7 +254,7 @@ class ExporterGmeta(Exporter.Exporter):
 
             record["datacite_resourceTypeGeneral"] = "dataset"
             gmeta_data = {"@datatype": "GMetaEntry", "@version": "2016-11-09",
-                          "subject": record["item_url"], "visible_to": ["public"], "mimetype": "application/json",
+                          "subject": gmeta_subject, "visible_to": ["public"], "mimetype": "application/json",
                           "content": record}
             self.output_buffer.append(gmeta_data)
 
