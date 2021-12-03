@@ -18,7 +18,7 @@ class Migration:
         # This SQL will only work once, before the next migration is done. Afterwards, record_id column is gone.
         select_sql = """SELECT recs.record_id, recs.source_url, recs.deleted, recs.local_identifier, recs.item_url,
             repos.repository_url, repos.item_url_pattern
-            FROM records recs, repositories repos WHERE recs.repository_id = repos.repository_id"""
+            FROM records recs, repositories repos WHERE recs.repository_id = repos.repository_id and recs.record_uuid is null"""
         records_to_update = self.db.get_records_raw_query(select_sql)
 
         for row in records_to_update:
