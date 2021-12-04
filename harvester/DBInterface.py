@@ -175,12 +175,12 @@ class DBInterface:
                         set repository_url=?, repository_set=?, repository_name=?, repository_type=?,
                         repository_thumbnail=?, last_crawl_timestamp=?, item_url_pattern=?,enabled=?,
                         abort_after_numerrors=?,max_records_updated_per_run=?,update_log_after_numitems=?,
-                        record_refresh_days=?,repo_refresh_days=?,homepage_url=?,repo_oai_name=?
+                        record_refresh_days=?,repo_refresh_days=?,homepage_url=?,repo_oai_name=?,repo_registry_uri=?
                         WHERE repository_id=?"""
                     update_params = (self.repo_url, self.repo_set, self.repo_name, self.repo_type, self.repo_thumbnail,
                         time.time(), self.item_url_pattern, self.enabled, self.abort_after_numerrors,
                         self.max_records_updated_per_run, self.update_log_after_numitems, self.record_refresh_days,
-                        self.repo_refresh_days, self.homepage_url, self.repo_oai_name, self.repo_id)
+                        self.repo_refresh_days, self.homepage_url, self.repo_oai_name, self.repo_registry_uri, self.repo_id)
                     cur.execute(self._prep(update_sql), update_params)
                 except self.dblayer.IntegrityError as e:
                     # record already present in repo
@@ -195,12 +195,12 @@ class DBInterface:
                             (repository_url, repository_set, repository_name, repository_type, repository_thumbnail,
                             last_crawl_timestamp, item_url_pattern, enabled,
                             abort_after_numerrors,max_records_updated_per_run,update_log_after_numitems,
-                            record_refresh_days,repo_refresh_days,homepage_url,repo_oai_name)
-                            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING repository_id"""
+                            record_refresh_days,repo_refresh_days,homepage_url,repo_oai_name, repo_registry_uri)
+                            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING repository_id"""
                         insert_params = (self.repo_url, self.repo_set, self.repo_name, self.repo_type, self.repo_thumbnail,
                             time.time(), self.item_url_pattern, self.enabled, self.abort_after_numerrors,
                             self.max_records_updated_per_run, self.update_log_after_numitems, self.record_refresh_days,
-                            self.repo_refresh_days, self.homepage_url, self.repo_oai_name)
+                            self.repo_refresh_days, self.homepage_url, self.repo_oai_name, self.repo_registry_uri)
                         cur.execute(self._prep(insert_sql), insert_params)
                         self.repo_id = int(cur.fetchone()['repository_id'])
 
@@ -209,12 +209,12 @@ class DBInterface:
                             (repository_url, repository_set, repository_name, repository_type, repository_thumbnail,
                             last_crawl_timestamp, item_url_pattern, enabled, abort_after_numerrors,
                             max_records_updated_per_run,update_log_after_numitems,record_refresh_days,repo_refresh_days,
-                            homepage_url,repo_oai_name)
-                            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"""
+                            homepage_url,repo_oai_name,repo_registry_uri)
+                            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"""
                         insert_params = (self.repo_url, self.repo_set, self.repo_name, self.repo_type, self.repo_thumbnail,
                             time.time(), self.item_url_pattern, self.enabled, self.abort_after_numerrors,
                             self.max_records_updated_per_run, self.update_log_after_numitems, self.record_refresh_days,
-                            self.repo_refresh_days, self.homepage_url, self.repo_oai_name)
+                            self.repo_refresh_days, self.homepage_url, self.repo_oai_name,self.repo_registry_uri)
                         cur.execute(self._prep(insert_sql), insert_params)
                         self.repo_id = int(cur.lastrowid)
 

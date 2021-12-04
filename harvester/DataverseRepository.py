@@ -30,6 +30,7 @@ class DataverseRepository(HarvestRepository):
             "repo_refresh_days": self.repo_refresh_days,
             "homepage_url": self.homepage_url,
             "repo_oai_name": self.repo_oai_name,
+            "repo_registry_uri": self.repo_registry_uri,
             "dataverses_list": self.dataverses_list # only retrieve these sub-dataverses; defaults to None (which means include all)
         }
         self.repository_id = self.db.update_repo(**kwargs)
