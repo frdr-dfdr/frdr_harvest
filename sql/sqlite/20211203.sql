@@ -1,1 +1,1 @@
-alter table repositories add column registry_uri TEXT;
+alter table repositories add column repo_registry_uri TEXT;
