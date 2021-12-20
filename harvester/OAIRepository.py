@@ -271,15 +271,15 @@ class OAIRepository(HarvestRepository):
             record["creator"] = []
             record["affiliation"] = []
 
-            if frdr_xml.find("{http://datacite.org/schema/kernel-4}creators"):
+            if len(frdr_xml.find("{http://datacite.org/schema/kernel-4}creators")) > 0:
                 for creator_xml in list(frdr_xml.find("{http://datacite.org/schema/kernel-4}creators")):
                     record["creator"].append(creator_xml.find("{http://datacite.org/schema/kernel-4}creatorName").text)
                     for affiliation_xml in creator_xml.findall("{http://datacite.org/schema/kernel-4}affiliation"):
                         if affiliation_xml.get("affiliationIdentifier"):
-                            record["affiliation"].append({"affiliation_name": affiliation_xml.text,
+                            record["affiliation"].append({"affiliation_name": affiliation_xml.text.strip(),
                                                           "affiliation_ror": affiliation_xml.get("affiliationIdentifier")})
                         else:
-                            record["affiliation"].append(affiliation_xml.text)
+                            record["affiliation"].append(affiliation_xml.text.strip())
 
             if "dateissued" in record:
                 record["pub_date"] = record["dateissued"]
