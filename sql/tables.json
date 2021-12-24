@@ -43,13 +43,13 @@
   },
   "geobbox": {
     "idcol": "geobbox_id",
-    "valcol": "record_id",
+    "valcol": "record_uuid",
     "extracolumn": "",
     "crosstable": ""
   },
   "geofile": {
     "idcol": "geofile_id",
-    "valcol": "record_id",
+    "valcol": "record_uuid",
     "extracolumn": "",
     "crosstable": ""
   },
@@ -61,7 +61,7 @@
   },
   "geopoint": {
     "idcol": "geopoint_id",
-    "valcol": "record_id",
+    "valcol": "record_uuid",
     "extracolumn": "",
     "crosstable": ""
   },
@@ -78,7 +78,7 @@
     "crosstable": "records_x_publishers"
   },
   "records": {
-    "idcol": "record_id",
+    "idcol": "record_uuid",
     "valcol": "local_identifier",
     "extracolumn": "",
     "crosstable": ""

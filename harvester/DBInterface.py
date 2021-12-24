@@ -1,7 +1,9 @@
 import os
 import time
 import hashlib
+import importlib.util
 import json
+import uuid
 import re
 from psycopg2.extras import DictCursor, RealDictCursor
 
@@ -20,6 +22,8 @@ class DBInterface:
             self.dblayer = __import__('sqlite3')
             global Row
             from sqlite3 import Row
+            if os.path.exists("data/globus_oai.db") and self.dbname != "data/globus_oai.db":
+                os.rename("data/globus_oai.db", self.dbname)
             if os.name == "posix":
                 try:
                     os.chmod(self.dbname, 0o664)
@@ -33,7 +37,7 @@ class DBInterface:
         else:
             raise ValueError('Database type must be sqlite or postgres in config file')
 
-        con = self.getConnection()
+        self.getConnection()
         cur = self.getRowCursor()
 
         # This table must always exist
@@ -46,19 +50,35 @@ class DBInterface:
         files = os.listdir("sql/" + str(self.dbtype) + "/")
         files.sort()
         for filename in files:
-            if filename.endswith(".sql"):
+            fullpathtofile = "sql/" + str(self.dbtype) + "/" + filename
+            if filename.endswith(".sql") or filename.endswith(".py"):
                 scriptversion = int(filename.split('.')[0])
                 if scriptversion > dbversion:
-                    # Run this script to update the schema, then record it as done
-                    with open("sql/" + str(self.dbtype) + "/" + filename, 'r') as scriptfile:
-                        scriptcontents = scriptfile.read()
-                    if self.dbtype == "postgres":
-                        cur.execute(scriptcontents)
-                    elif self.dbtype == "sqlite":
-                        cur.executescript(scriptcontents)
+
+                    if filename.endswith(".sql"):
+                        # Run this script to update the schema, then record it as done
+                        with open(fullpathtofile, 'r') as scriptfile:
+                            scriptcontents = scriptfile.read()
+                        if self.dbtype == "postgres":
+                            cur.execute(scriptcontents)
+                        elif self.dbtype == "sqlite":
+                            cur.executescript(scriptcontents)
+
+                    if filename.endswith(".py"):
+                        # Import migration module code from a python file
+                        migration_spec = importlib.util.spec_from_file_location(str(scriptversion), fullpathtofile)
+                        migration_module = importlib.util.module_from_spec(migration_spec)
+                        migration_spec.loader.exec_module(migration_module)
+
+                        # Now run the migration python script
+                        migrator = migration_module.Migration()
+                        migrator.set_dbinterface(self)
+                        migrator.migrate()
+
                     self.set_setting("dbversion", scriptversion)
                     dbversion = scriptversion
                     print("Updated database to version: {:d}".format(scriptversion))  # No logger yet
+
 
         self.tabledict = {}
         with open("sql/tables.json", 'r') as jsonfile:
@@ -107,10 +127,17 @@ class DBInterface:
             return statement.replace('?', '%s')
         return statement
 
+    def get_uuid(self, url):
+        if url is None:
+            return None
+        if url == "":
+            return None
+        return str(uuid.uuid5(uuid.NAMESPACE_URL, url))
+
     def get_setting(self, setting_name):
         # Get an internal setting
         setting_value = 0
-        con = self.getConnection()
+        self.getConnection()
         res = None
         cur = self.getDictCursor()
         cur.execute(
@@ -144,17 +171,17 @@ class DBInterface:
                 # Existing repo
                 try:
                     self.logger.debug("This repo already exists in the database; updating")
-                    cur.execute(self._prep("""UPDATE repositories
+                    update_sql = """UPDATE repositories
                         set repository_url=?, repository_set=?, repository_name=?, repository_type=?,
                         repository_thumbnail=?, last_crawl_timestamp=?, item_url_pattern=?,enabled=?,
                         abort_after_numerrors=?,max_records_updated_per_run=?,update_log_after_numitems=?,
-                        record_refresh_days=?,repo_refresh_days=?,homepage_url=?,repo_oai_name=?
-                        WHERE repository_id=?"""), (
-                        self.repo_url, self.repo_set, self.repo_name, self.repo_type, self.repo_thumbnail, time.time(),
-                        self.item_url_pattern,
-                        self.enabled, self.abort_after_numerrors, self.max_records_updated_per_run,
-                        self.update_log_after_numitems,
-                        self.record_refresh_days, self.repo_refresh_days, self.homepage_url, self.repo_oai_name, self.repo_id))
+                        record_refresh_days=?,repo_refresh_days=?,homepage_url=?,repo_oai_name=?,repo_registry_uri=?
+                        WHERE repository_id=?"""
+                    update_params = (self.repo_url, self.repo_set, self.repo_name, self.repo_type, self.repo_thumbnail,
+                        time.time(), self.item_url_pattern, self.enabled, self.abort_after_numerrors,
+                        self.max_records_updated_per_run, self.update_log_after_numitems, self.record_refresh_days,
+                        self.repo_refresh_days, self.homepage_url, self.repo_oai_name, self.repo_registry_uri, self.repo_id)
+                    cur.execute(self._prep(update_sql), update_params)
                 except self.dblayer.IntegrityError as e:
                     # record already present in repo
                     self.logger.error("Integrity error in update {}".format(e))
@@ -164,31 +191,31 @@ class DBInterface:
                 try:
                     self.logger.debug("This repo does not exist in the database; adding")
                     if self.dbtype == "postgres":
-                        cur.execute(self._prep("""INSERT INTO repositories
+                        insert_sql = """INSERT INTO repositories
                             (repository_url, repository_set, repository_name, repository_type, repository_thumbnail,
                             last_crawl_timestamp, item_url_pattern, enabled,
                             abort_after_numerrors,max_records_updated_per_run,update_log_after_numitems,
-                            record_refresh_days,repo_refresh_days,homepage_url,repo_oai_name)
-                            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING repository_id"""), (
-                            self.repo_url, self.repo_set, self.repo_name, self.repo_type, self.repo_thumbnail,
-                            time.time(), self.item_url_pattern,
-                            self.enabled, self.abort_after_numerrors, self.max_records_updated_per_run,
-                            self.update_log_after_numitems,
-                            self.record_refresh_days, self.repo_refresh_days, self.homepage_url, self.repo_oai_name))
+                            record_refresh_days,repo_refresh_days,homepage_url,repo_oai_name, repo_registry_uri)
+                            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING repository_id"""
+                        insert_params = (self.repo_url, self.repo_set, self.repo_name, self.repo_type, self.repo_thumbnail,
+                            time.time(), self.item_url_pattern, self.enabled, self.abort_after_numerrors,
+                            self.max_records_updated_per_run, self.update_log_after_numitems, self.record_refresh_days,
+                            self.repo_refresh_days, self.homepage_url, self.repo_oai_name, self.repo_registry_uri)
+                        cur.execute(self._prep(insert_sql), insert_params)
                         self.repo_id = int(cur.fetchone()['repository_id'])
 
                     if self.dbtype == "sqlite":
-                        cur.execute(self._prep("""INSERT INTO repositories
+                        insert_sql = """INSERT INTO repositories
                             (repository_url, repository_set, repository_name, repository_type, repository_thumbnail,
                             last_crawl_timestamp, item_url_pattern, enabled, abort_after_numerrors,
                             max_records_updated_per_run,update_log_after_numitems,record_refresh_days,repo_refresh_days,
-                            homepage_url,repo_oai_name)
-                            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"""), (
-                            self.repo_url, self.repo_set, self.repo_name, self.repo_type, self.repo_thumbnail,
-                            time.time(), self.item_url_pattern,
-                            self.enabled, self.abort_after_numerrors, self.max_records_updated_per_run,
-                            self.update_log_after_numitems,
-                            self.record_refresh_days, self.repo_refresh_days, self.homepage_url, self.repo_oai_name))
+                            homepage_url,repo_oai_name,repo_registry_uri)
+                            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"""
+                        insert_params = (self.repo_url, self.repo_set, self.repo_name, self.repo_type, self.repo_thumbnail,
+                            time.time(), self.item_url_pattern, self.enabled, self.abort_after_numerrors,
+                            self.max_records_updated_per_run, self.update_log_after_numitems, self.record_refresh_days,
+                            self.repo_refresh_days, self.homepage_url, self.repo_oai_name,self.repo_registry_uri)
+                        cur.execute(self._prep(insert_sql), insert_params)
                         self.repo_id = int(cur.lastrowid)
 
                 except self.dblayer.IntegrityError as e:
@@ -202,6 +229,8 @@ class DBInterface:
         if repo_set is not None:
             extrawhere = "and repository_set='{}'".format(repo_set)
         records = self.get_multiple_records("repositories", "repository_id", "repository_url", repo_url, extrawhere)
+        if len(records) > 1:
+            self.logger.error("Multiple repositories found for repository_url: {}".format(repo_url))
         for record in records:
             returnvalue = int(record['repository_id'])
         # If not found, look for insecure version of the url, it may have just changed to https on this pass
@@ -227,7 +256,7 @@ class DBInterface:
         repos = [dict(rec) for rec in records]
         for i in range(len(repos)):
             records = self.get_multiple_records("records", "count(*) as cnt", "repository_id",
-                                                repos[i]["repository_id"], "and modified_timestamp!=0 and (title != '' or title_fr != '') and deleted=0")
+                        repos[i]["repository_id"], "and modified_timestamp!=0 and (title != '' or title_fr != '') and deleted=0")
             for rec in records:
                 repos[i]["item_count"] = int(rec["cnt"])
         return repos
@@ -246,7 +275,8 @@ class DBInterface:
         self.insert_related_record("ror_affiliation_matches", affiliation_string, **extras)
         return self.get_ror_from_affiliation(affiliation_string)
 
-    def update_record(self, record_id, fields):
+    def update_record(self, record_uuid, fields):
+        recordidcolumn = self.get_table_id_column("records")
         update_record_sql = "update records set "
         update_cols = []
         update_vals = []
@@ -254,21 +284,21 @@ class DBInterface:
             update_cols.append("{} = ?".format(key))
             update_vals.append(value)
         update_record_sql += ", ".join(update_cols)
-        update_record_sql += " where record_id = ?"
-        update_vals.append(record_id)
+        update_record_sql += " where " + recordidcolumn + " = ?"
+        update_vals.append(record_uuid)
 
         con = self.getConnection()
         with con:
             cur = self.getRowCursor()
-            cur.execute(self._prep(update_record_sql),
-                        update_vals)
+            cur.execute(self._prep(update_record_sql), update_vals)
 
     def update_last_crawl(self, repo_id):
         con = self.getConnection()
         with con:
+            update_sql = "update repositories set last_crawl_timestamp = ? where repository_id = ?"
+            update_params = (int(time.time()), repo_id)
             cur = self.getRowCursor()
-            cur.execute(self._prep("update repositories set last_crawl_timestamp = ? where repository_id = ?"),
-                        (int(time.time()), repo_id))
+            cur.execute(self._prep(update_sql), update_params)
 
     def set_repo_enabled(self, repo_id, enabled):
         cur = self.getRowCursor()
@@ -276,14 +306,16 @@ class DBInterface:
                     (enabled, repo_id))
 
     def delete_record(self, record):
+        recordidcolumn = self.get_table_id_column("records")
         con = self.getConnection()
-        if record['record_id'] == 0:
+        if record[recordidcolumn] == "":
             return False
         with con:
+            delete_sql = "UPDATE records set deleted = 1, modified_timestamp = ?, upstream_modified_timestamp = ? where " + recordidcolumn + "=?"
+            delete_params = (time.time(), time.time(), record[recordidcolumn])
             cur = self.getRowCursor()
             try:
-                cur.execute(self._prep("UPDATE records set deleted = 1, modified_timestamp = ?, upstream_modified_timestamp = ? where record_id=?"),
-                            (time.time(), time.time(), record['record_id']))
+                cur.execute(self._prep(delete_sql), delete_params)
             except Exception as e:
                 self.logger.error("Unable to mark as deleted record {}".format(record['local_identifier']))
                 return False
@@ -293,13 +325,13 @@ class DBInterface:
                 "records_x_access", "records_x_affiliations", "records_x_crdc", "records_x_creators",
                 "descriptions", "domain_metadata", "geobbox", "geofile", "records_x_geoplace", "geopoint", "geospatial",
                 "records_x_publishers", "records_x_rights", "records_x_subjects", "records_x_tags" ]:
-                self.delete_rows(tablename, "record_id", record['record_id'])
+                self.delete_rows(tablename, recordidcolumn, record[recordidcolumn])
         except Exception as e:
             self.logger.error(
                 "delete_record() failed for record {}: {}".format(record['local_identifier'], e))
             return False
 
-        self.logger.debug("Marked as deleted: record {}".format(record['local_identifier']))
+        self.logger.debug("Marked as deleted: record local_identifier: {}".format(record['local_identifier']))
         return True
 
     def purge_deleted_records(self):
@@ -318,24 +350,25 @@ class DBInterface:
         with con:
             cur = self.getRowCursor()
             try:
-                sqlstring = "DELETE from {} where {}=? {}".format(tablename, columnname, extrawhere)
-                cur.execute(self._prep(sqlstring), (column_value,))
+                delete_sql = "DELETE from {} where {}=? {}".format(tablename, columnname, extrawhere)
+                delete_params = (column_value,)
+                cur.execute(self._prep(delete_sql), delete_params)
             except Exception as e:
-                self.logger.error("delete_rows() failed with sqlstring \"{}\": {}".format(sqlstring, e))
+                self.logger.error("delete_rows() failed with sqlstring \"{}\": {}".format(delete_sql, e))
                 raise e
         return True
 
     def update_row_generic(self, tablename, row_id, updates, extrawhere=""):
         idcolumn = self.get_table_id_column(tablename)
-        sqlstring = "UPDATE {} set {} where {}=? {}".format(tablename, "=?, ".join(str(k) for k in list(updates.keys())) + "=?", idcolumn, extrawhere)
-        values = list(updates.values())
-        values.append(row_id)
+        update_sql = "UPDATE {} set {} where {}=? {}".format(tablename, "=?, ".join(str(k) for k in list(updates.keys())) + "=?", idcolumn, extrawhere)
+        update_params = list(updates.values())
+        update_params.append(row_id)
 
         con = self.getConnection()
         with con:
             cur = self.getRowCursor()
             try:
-                cur.execute(self._prep(sqlstring), values )
+                cur.execute(self._prep(update_sql), update_params )
             except Exception as e:
                 return False
             return True
@@ -365,6 +398,9 @@ class DBInterface:
         raise ValueError("tables.json missing cross definition for {}".format(tablename))
 
     def insert_related_record(self, tablename, val, **kwargs):
+        if tablename == "records":
+            self.logger.error("insert_related_record() cannot be used on table: records")
+            return None
         valcolumn = self.get_table_value_column(tablename)
         idcolumn = self.get_table_id_column(tablename)
         related_record_id = None
@@ -390,11 +426,12 @@ class DBInterface:
 
         return related_record_id
 
-    def insert_cross_record(self, crosstable, relatedtable, related_id, record_id, **kwargs):
+    def insert_cross_record(self, crosstable, relatedtable, related_id, record_uuid, **kwargs):
         cross_table_id = None
         idcolumn = self.get_table_id_column(crosstable)
+        recordidcolumn = self.get_table_id_column("records")
         relatedidcolumn = self.get_table_id_column(relatedtable)
-        paramlist = {"record_id": record_id, relatedidcolumn: related_id}
+        paramlist = {recordidcolumn: record_uuid, relatedidcolumn: related_id}
         for key, value in kwargs.items():
             paramlist[key] = value
         sqlstring = "INSERT INTO {} ({}) VALUES ({})".format(
@@ -442,18 +479,28 @@ class DBInterface:
                 records = cur.fetchall()
         return records
 
+    def update_records_raw_query(self, sqlstring):
+        con = self.getConnection()
+        with con:
+            cur = self.getDictCursor()
+            cur.execute(self._prep(sqlstring))
+
     def get_single_record_id(self, tablename, val, extrawhere="", **kwargs):
         returnvalue = None
         idcolumn = self.get_table_id_column(tablename)
         valcolumn = self.get_table_value_column(tablename)
         records = self.get_multiple_records(tablename, idcolumn, valcolumn, val, extrawhere, **kwargs)
         for record in records:
-            returnvalue = int(record[idcolumn])
+            if idcolumn.endswith("uuid"):
+                returnvalue = str(record[idcolumn])
+            else:
+                returnvalue = int(record[idcolumn])
         return returnvalue
 
     def construct_local_url(self, record):
         oai_id = None
         oai_search = None
+
         # Check if the local_identifier has already been turned into a url
         if "local_identifier" in record:
             if record["local_identifier"] and record["local_identifier"].startswith(("http","HTTP")):
@@ -461,7 +508,8 @@ class DBInterface:
             # No link found, see if there is an OAI identifier
             oai_search = re.search("oai:(.+):(.+)", record["local_identifier"])
         else:
-            oai_search = re.search("oai:(.+):(.+)", record["identifier"])
+            if "identifier" in record:
+                oai_search = re.search("oai:(.+):(.+)", record["identifier"])
 
         if oai_search:
             # Check for OAI format of identifier (oai:domain:id) and extract just the ID
@@ -508,51 +556,50 @@ class DBInterface:
             if local_url:
                 return local_url.group(0)
 
-        self.logger.error("construct_local_url() failed for item: {}".format(json.dumps(record)) )
+        if self.logger:
+            self.logger.error("construct_local_url() failed for item: {}".format(json.dumps(record)) )
         return None
 
     def create_new_record(self, rec, source_url, repo_id):
-        returnvalue = None
+        recordidcolumn = self.get_table_id_column("records")
+        if rec["item_url"] == "":
+            rec["item_url"] = self.construct_local_url(rec)
+        new_uuid = self.get_uuid(rec["item_url"])
+        rec[recordidcolumn] = new_uuid
         con = self.getConnection()
         with con:
             cur = self.getDictCursor()
             try:
-                if self.dbtype == "postgres":
-                    cur.execute(self._prep(
-                        """INSERT INTO records (title, title_fr, pub_date, series, modified_timestamp, source_url,
-                        deleted, local_identifier, item_url, repository_id, upstream_modified_timestamp, files_size, files_altered)
-                        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING record_id"""),
-                        (rec["title"], rec["title_fr"], rec["pub_date"],  rec["series"], time.time(), source_url, 0,
-                         rec["identifier"], rec["item_url"], repo_id, time.time(), rec.get("files_size", 0), rec.get("files_altered", 1)))
-                    returnvalue = int(cur.fetchone()['record_id'])
-                if self.dbtype == "sqlite":
-                    cur.execute(self._prep(
-                        """INSERT INTO records (title, title_fr, pub_date, series, modified_timestamp, source_url,
-                        deleted, local_identifier, item_url, repository_id, upstream_modified_timestamp, files_size, files_altered)
-                        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)"""),
-                        (rec["title"], rec["title_fr"], rec["pub_date"], rec["series"], time.time(), source_url, 0,
-                         rec["identifier"], rec["item_url"], repo_id, time.time(), rec.get("files_size", 0), rec.get("files_altered", 1)))
-                    returnvalue = int(cur.lastrowid)
+                new_record_sql = """INSERT INTO records (""" + recordidcolumn + """,title, title_fr, pub_date, series, modified_timestamp, source_url,
+                    deleted, local_identifier, item_url, repository_id, upstream_modified_timestamp, files_size, files_altered)
+                    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)"""
+                new_record_params = (rec[recordidcolumn], rec["title"], rec["title_fr"], rec["pub_date"], rec["series"], time.time(), source_url, 
+                    0, rec["identifier"], rec["item_url"], repo_id, time.time(), rec.get("files_size", 0), rec.get("files_altered", 1))
+                cur.execute(self._prep(new_record_sql), new_record_params)
+
             except self.dblayer.IntegrityError as e:
                 self.logger.error("Record insertion problem: {}".format(e))
 
-        return returnvalue
+        return rec[recordidcolumn]
 
-    def update_related_metadata(self, record, val_table, val_fieldname, extras={}):
+    def update_related_metadata(self, record, val_table, val_fieldname, extras=None):
+        if extras is None:
+            extras = {}
         extrawhere = ""
         modified_upstream = False
         val_idcol = self.get_table_id_column(val_table)
         crosstable = self.get_table_crosstable(val_table)
         extracolumn = self.get_table_extracolumn(val_table)
+        recordidcolumn = self.get_table_id_column("records")
         if extracolumn:
             extrawhere = "and " + extracolumn + "='" + str(extras[extracolumn]) + "'"
 
         if crosstable:
-            existing_val_recs = self.get_records_raw_query("""select v.{} from {} v
-                               join {} x on x.{} = v.{}
-                               where x.record_id = {} {} """.format(val_idcol, val_table, crosstable, val_idcol, val_idcol, record["record_id"], extrawhere))
+            query_sql = "select v.{} from {} v join {} x on x.{} = v.{} where x." + recordidcolumn + " = '{}' {} "
+            existing_val_recs = self.get_records_raw_query(query_sql.format(val_idcol, val_table, crosstable, 
+                                val_idcol, val_idcol, record[recordidcolumn], extrawhere))
         else:
-            existing_val_recs = self.get_multiple_records(val_table, val_idcol, "record_id", record["record_id"], extrawhere)
+            existing_val_recs = self.get_multiple_records(val_table, val_idcol, recordidcolumn, record[recordidcolumn], extrawhere)
         existing_val_recs_ids = [e[val_idcol] for e in existing_val_recs]
         if val_fieldname in record:
             if not isinstance(record[val_fieldname], list):
@@ -584,7 +631,7 @@ class DBInterface:
                                     continue
                                 extras = {"lat": value["lat"], "lon": value["lon"]}
                             except Exception as e:
-                                self.logger.error("Unable to update geopoint for record id {}: {}".format(record['record_id'], e))
+                                self.logger.error("Unable to update geopoint for record id {}: {}".format(record[recordidcolumn], e))
                                 continue
                     elif val_fieldname == "geobboxes":
                         try:
@@ -611,7 +658,7 @@ class DBInterface:
                                 record["geopoints"].append({"lat": value["northLat"], "lon": value["westLon"]})
                                 continue
                         except Exception as e:
-                            self.logger.error("Unable to update geobbox for record id {}: {}".format(record['record_id'], e))
+                            self.logger.error("Unable to update geobbox for record id {}: {}".format(record[recordidcolumn], e))
                             continue
                     elif val_fieldname == "geofiles":
                         if "filename" in value and "uri" in value:
@@ -631,9 +678,9 @@ class DBInterface:
                         if val_fieldname == "rights":
                             extras = {"rights": original_value}
                         elif val_fieldname == "description":
-                            extras =  {"record_id": record["record_id"], "language": "en"}
+                            extras =  {recordidcolumn: record[recordidcolumn], "language": "en"}
                         elif val_fieldname == "description_fr":
-                            extras = {"record_id": record["record_id"], "language": "fr"}
+                            extras = {recordidcolumn: record[recordidcolumn], "language": "fr"}
 
                     # get existing value record if it exists
                     if val_fieldname in ["affiliation", "description", "description_fr", "geoplaces"]:
@@ -641,7 +688,7 @@ class DBInterface:
                     elif val_fieldname in ["tags", "tags_fr", "subject", "subject_fr"]:
                         val_rec_id = self.get_single_record_id(val_table, value, extrawhere)
                     elif val_fieldname in ["geopoints", "geobboxes", "geofiles"]:
-                        val_rec_id = self.get_single_record_id(val_table, record["record_id"], **extras)
+                        val_rec_id = self.get_single_record_id(val_table, record[recordidcolumn], **extras)
                     else: # ["creator", "contributor", "publisher", "rights"]
                         val_rec_id = self.get_single_record_id(val_table, value)
 
@@ -653,7 +700,7 @@ class DBInterface:
                         if val_fieldname in ["creator", "contributor", "publisher"]:
                             val_rec_id = self.insert_related_record(val_table, value)
                         elif val_fieldname in ["geopoints", "geobboxes", "geofiles"]:
-                            val_rec_id = self.insert_related_record(val_table, record["record_id"], **extras)
+                            val_rec_id = self.insert_related_record(val_table, record[recordidcolumn], **extras)
                         else: # ["affiliation", "rights", "tags", "tags_fr", "subject", "subject_fr", "description", "description_fr", "geoplaces"]:
                             val_rec_id = self.insert_related_record(val_table, value, **extras)
                         if val_fieldname != "geopoints": # Remove conditional when Geodisy starts processing points
@@ -663,9 +710,9 @@ class DBInterface:
                         if crosstable:
                             if val_rec_id not in existing_val_recs_ids:
                                 if val_fieldname in ["creator", "contributor"]:
-                                    self.insert_cross_record(crosstable, val_table, val_rec_id, record["record_id"], **extras)
+                                    self.insert_cross_record(crosstable, val_table, val_rec_id, record[recordidcolumn], **extras)
                                 else:
-                                    self.insert_cross_record(crosstable, val_table, val_rec_id, record["record_id"])
+                                    self.insert_cross_record(crosstable, val_table, val_rec_id, record[recordidcolumn])
                                 modified_upstream = True
             for eid in existing_val_recs_ids: # delete value if no longer present in incoming record values
                 if eid not in new_val_recs_ids:
@@ -673,13 +720,13 @@ class DBInterface:
                     if crosstable:
                         # Delete the cross table row but leave the related value table row, it may be used elsewhere
                         deletewhere = "and " + val_idcol + "='" + str(eid) + "'"
-                        self.delete_rows(crosstable, "record_id", str(record["record_id"]), deletewhere )
+                        self.delete_rows(crosstable, recordidcolumn, str(record[recordidcolumn]), deletewhere )
                     else:
                         self.delete_rows(val_table, val_idcol, eid)
         elif existing_val_recs: # delete metadata if the field is no longer present at all in incoming record
             modified_upstream = True
             if crosstable:
-                self.delete_rows(crosstable, "record_id", record["record_id"])
+                self.delete_rows(crosstable, recordidcolumn, record[recordidcolumn])
             else:
                 for eid in existing_val_recs_ids:
                     self.delete_rows(val_table, val_idcol, eid)
@@ -688,11 +735,12 @@ class DBInterface:
     def write_record(self, record, repo):
         repo_id = repo.repository_id
         domain_metadata = repo.domain_metadata
+        recordidcolumn = self.get_table_id_column("records")
         modified_upstream = False  # Track whether metadata changed since last crawl
 
         if record is None:
             return None
-        record["record_id"] = self.get_single_record_id("records", record["identifier"],
+        record[recordidcolumn] = self.get_single_record_id("records", record["identifier"],
                                                         "and repository_id=" + str(repo_id))
         record["item_url_pattern"] = repo.item_url_pattern
         if record.get("item_url", None) is None:
@@ -706,12 +754,12 @@ class DBInterface:
                 source_url = record["dc:source"][0]
             else:
                 source_url = record["dc:source"]
-        if record["record_id"] is None:
+        if record[recordidcolumn] is None:
             modified_upstream = True # New record has new metadata
-            record["record_id"] = self.create_new_record(record, source_url, repo_id)
+            record[recordidcolumn] = self.create_new_record(record, source_url, repo_id)
         else:
             # Compare title, title_fr, pub_date, series, source_url, item_url, local_identifier for changes
-            records = self.get_multiple_records("records", "*", "record_id", record["record_id"])
+            records = self.get_multiple_records("records", "*", recordidcolumn, record[recordidcolumn])
             if len(records) == 1:
                 existing_record = records[0]
                 try:
@@ -732,15 +780,15 @@ class DBInterface:
                     raise AssertionError
 
             with con:
-                cur = self.getRowCursor()
-                cur.execute(self._prep(
-                    """UPDATE records set title=?, title_fr=?, pub_date=?, series=?, modified_timestamp=?, source_url=?,
+                update_sql = """UPDATE records set title=?, title_fr=?, pub_date=?, series=?, modified_timestamp=?, source_url=?,
                     deleted=?, local_identifier=?, item_url=?, files_size=?, files_altered=?
-                    WHERE record_id = ?"""),
-                    (record["title"], record["title_fr"], record["pub_date"], record["series"], time.time(),
-                     source_url, 0, record["identifier"], record["item_url"], record.get("files_size", 0), record.get("files_altered",1), record["record_id"]))
+                    WHERE """ + recordidcolumn + """ = ?"""
+                update_params = (record["title"], record["title_fr"], record["pub_date"], record["series"], time.time(),
+                     source_url, 0, record["identifier"], record["item_url"], record.get("files_size", 0), record.get("files_altered",1), record[recordidcolumn])
+                cur = self.getRowCursor()
+                cur.execute(self._prep(update_sql), update_params)
 
-        if record["record_id"] is None:
+        if record[recordidcolumn] is None:
             return None
 
         # creators
@@ -809,7 +857,7 @@ class DBInterface:
 
         # crdc
         if "crdc" in record:
-            existing_crdc_recs = self.get_multiple_records("records_x_crdc", "*", "record_id", record["record_id"])
+            existing_crdc_recs = self.get_multiple_records("records_x_crdc", "*", recordidcolumn, record[recordidcolumn])
             existing_crdc_ids = [e["crdc_id"] for e in existing_crdc_recs]
             new_crdc_ids = []
             crdc_key_list = ["crdc_code", "crdc_group_en", "crdc_group_fr", "crdc_class_en", "crdc_class_fr", "crdc_field_en", "crdc_field_fr"]
@@ -837,19 +885,19 @@ class DBInterface:
                     if crdc_id is not None:
                         new_crdc_ids.append(crdc_id)
                         if crdc_id not in existing_crdc_ids:
-                            self.insert_cross_record("records_x_crdc", "crdc", crdc_id, record["record_id"])
+                            self.insert_cross_record("records_x_crdc", "crdc", crdc_id, record[recordidcolumn])
                             modified_upstream = True
             for eid in existing_crdc_ids:
                 if eid not in new_crdc_ids:
                     records_x_crdc_id = \
-                        self.get_multiple_records("records_x_crdc", "records_x_crdc_id", "record_id",
-                                                  record["record_id"], " and crdc_id='"
+                        self.get_multiple_records("records_x_crdc", "records_x_crdc_id", recordidcolumn,
+                                                  record[recordidcolumn], " and crdc_id='"
                                                   + str(eid) + "'")[0]["records_x_crdc_id"]
                     self.delete_rows("records_x_crdc", "records_x_crdc_id", records_x_crdc_id)
                     modified_upstream = True
 
         # domain metadata
-        existing_metadata_recs = self.get_multiple_records("domain_metadata", "*", "record_id", record["record_id"])
+        existing_metadata_recs = self.get_multiple_records("domain_metadata", "*", recordidcolumn, record[recordidcolumn])
         existing_metadata_ids = [e["metadata_id"] for e in existing_metadata_recs]
         if len(domain_metadata) > 0:
             new_metadata_ids = []
@@ -863,10 +911,10 @@ class DBInterface:
                 if not isinstance(domain_metadata[field_uri], list):
                     domain_metadata[field_uri] = [domain_metadata[field_uri]]
                 for field_value in domain_metadata[field_uri]:
-                    extras = {"record_id": record["record_id"], "field_name": field_name, "field_value": field_value}
+                    extras = {recordidcolumn: record[recordidcolumn], "field_name": field_name, "field_value": field_value}
                     metadata_id = self.get_single_record_id("domain_metadata", schema_id, "", **extras)
                     if metadata_id is None:
-                        extras = {"record_id": record["record_id"], "field_name": field_name,
+                        extras = {recordidcolumn: record[recordidcolumn], "field_name": field_name,
                                   "field_value": field_value}
                         metadata_id = self.insert_related_record("domain_metadata", schema_id, **extras)
                     if metadata_id is not None:
@@ -886,62 +934,80 @@ class DBInterface:
         return None
 
     def get_stale_records(self, stale_timestamp, repo_id, max_records_updated_per_run):
+        recordidcolumn = self.get_table_id_column("records")
         con = self.getConnection()
         records = []
         with con:
-            cur = self.getDictCursor()
-            cur.execute(self._prep("""SELECT recs.record_id, recs.title, recs.pub_date, recs.series
+            stale_sql = """SELECT recs.""" + recordidcolumn + """, recs.title, recs.pub_date, recs.series
                 , recs.modified_timestamp, recs.local_identifier, recs.item_url
                 , repos.repository_id, repos.repository_type, recs.geodisy_harvested, recs.files_size, recs.files_altered
                 FROM records recs, repositories repos
                 where recs.repository_id = repos.repository_id and recs.modified_timestamp < ?
                 and repos.repository_id = ? and recs.deleted = 0
-                LIMIT ?"""), (stale_timestamp, repo_id, max_records_updated_per_run))
+                LIMIT ?"""
+            stale_params = (stale_timestamp, repo_id, max_records_updated_per_run)
+            cur = self.getDictCursor()
+            cur.execute(self._prep(stale_sql), stale_params)
             if cur is not None:
                 records = cur.fetchall()
 
         return records
 
     def touch_record(self, record):
+        recordidcolumn = self.get_table_id_column("records")
         con = self.getConnection()
         with con:
+            touch_sql = "UPDATE records set modified_timestamp = ? where " + recordidcolumn + " = ?"
+            touch_params = (time.time(), record[recordidcolumn])
             cur = self.getDictCursor()
             try:
-                cur.execute(self._prep("UPDATE records set modified_timestamp = ? where record_id = ?"),
-                            (time.time(), record['record_id']))
+                cur.execute(self._prep(touch_sql), touch_params)
             except Exception as e:
-                self.logger.error("Unable to update modified_timestamp for record id {}".format(record['record_id']))
+                self.logger.error("Unable to update modified_timestamp for record {}".format(record[recordidcolumn]))
                 return False
 
         return True
 
-    def write_header(self, local_identifier, repo_id):
+    def write_header(self, local_identifier, item_url_pattern, repo_id):
+        recordidcolumn = self.get_table_id_column("records")
         record_id = self.get_single_record_id("records", local_identifier, "and repository_id=" + str(repo_id))
         if record_id is None:
-            con = self.getConnection()
-            with con:
-                cur = self.getDictCursor()
-                try:
-                    cur.execute(self._prep(
-                        "INSERT INTO records (title, title_fr, pub_date, series, modified_timestamp, local_identifier"
-                        ", item_url, repository_id, upstream_modified_timestamp, files_size, files_altered) VALUES(?,?,?,?,?,?,?,?,?,?,?)"),
-                        ("", "", "", "", 0, local_identifier, "", repo_id, time.time(), 0, 1))
-                except self.dblayer.IntegrityError as e:
-                    self.logger.error("Error creating record header: {}".format(e))
+            new_record = {
+                "local_identifier": local_identifier,
+                "item_url_pattern": item_url_pattern
+            }
+            new_record["item_url"] = self.construct_local_url(new_record)
+            new_uuid = self.get_uuid(new_record["item_url"])
+
+            if new_uuid is None:
+                self.logger.error("write_header failed for item {} in repo {}".format(
+                    local_identifier,str(repo_id)))
+            else:
+                con = self.getConnection()
+                with con:
+                    cur = self.getDictCursor()
+                    try:
+                        header_sql = """INSERT INTO records (""" + recordidcolumn + """,title, title_fr, pub_date, series, modified_timestamp, local_identifier,
+                            item_url, repository_id, upstream_modified_timestamp, files_size, files_altered) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)"""
+                        header_params = (new_uuid, "", "", "", "", 0, local_identifier, "", repo_id, time.time(), 0, 1)
+                        cur.execute(self._prep(header_sql), header_params)
+                    except self.dblayer.IntegrityError as e:
+                        self.logger.error("Error creating record header: {}".format(e))
 
         return None
 
     def update_record_upstream_modified(self, record):
+        recordidcolumn = self.get_table_id_column("records")
         con = self.getConnection()
         with con:
+            update_sql = "UPDATE records set upstream_modified_timestamp = ?, geodisy_harvested = 0 where " + recordidcolumn + " = ?"
+            update_params = (time.time(), record[recordidcolumn])
             cur = self.getDictCursor()
             try:
-                cur.execute(self._prep("UPDATE records set upstream_modified_timestamp = ?, geodisy_harvested = 0 where record_id = ?")
-                            , (time.time(), record['record_id']))
+                cur.execute(self._prep(update_sql), update_params)
             except self.dblayer.IntegrityError as e:
-                self.logger.error("Unable to update modified_timestamp for record id ? dur to error creating"
-                                  " record header: ?", record['record_id'], e)
-
+                self.logger.error("Unable to update modified_timestamp for record ? dur to error creating"
+                                  " record header: ?", record[recordidcolumn], e)
         return None
 
     def check_lat(self,lat):

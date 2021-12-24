@@ -36,7 +36,8 @@ class OpenDataSoftRepository(HarvestRepository):
             "update_log_after_numitems": self.update_log_after_numitems,
             "record_refresh_days": self.record_refresh_days,
             "repo_refresh_days": self.repo_refresh_days, "homepage_url": self.homepage_url,
-            "repo_oai_name": self.repo_oai_name
+            "repo_oai_name": self.repo_oai_name,
+            "repo_registry_uri": self.repo_registry_uri
         }
         self.repository_id = self.db.update_repo(**kwargs)
 
@@ -53,12 +54,12 @@ class OpenDataSoftRepository(HarvestRepository):
                     break
                 for record in records["datasets"]:
                     item_identifier = record["datasetid"]
-                    self.db.write_header(item_identifier, self.repository_id)
+                    self.db.write_header(item_identifier, self.item_url_pattern, self.repository_id)
                     item_count = item_count + 1
                     if (item_count % self.update_log_after_numitems == 0):
                         tdelta = time.time() - self.tstart + 0.1
-                        self.logger.info("Done {} item headers after {} ({:.1f} items/sec)".format(item_count,self.formatter.humanize(
-                                                                                               tdelta),item_count / tdelta))
+                        self.logger.info("Done {} item headers after {} ({:.1f} items/sec)".format(
+                            item_count,self.formatter.humanize(tdelta),item_count / tdelta))
                 offset += self.records_per_request
             self.logger.info("Found {} items in feed".format(item_count))
 

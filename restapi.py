@@ -111,24 +111,23 @@ class Record(Resource):
 
     editable_fields = ["geodisy_harvested", "files_altered"]
 
-    def get(self, record_id):
-        record_id = int(record_id)
-        get_log().debug("{} GET /records/{}".format(request.remote_addr, record_id))
-        recs = get_db().get_multiple_records("records", "*", "record_id", record_id)
+    def get(self, record_uuid):
+        get_log().debug("{} GET /records/{}".format(request.remote_addr, record_uuid))
+        recs = get_db().get_multiple_records("records", "*", "record_uuid", record_uuid)
         
         if len(recs) == 0:
-            abort(404, message="Record {} not found".format(record_id))
+            abort(404, message="Record {} not found".format(record_uuid))
         else:
             record = recs[0]
             this_record = {}
             if int(record["deleted"]) == 1:
                 this_record = {
-                    "record_id": record["record_id"],
+                    "record_uuid": record["record_uuid"],
                     "deleted": record["deleted"]
                 }
             else:
                 this_record = {
-                    "record_id": record["record_id"],
+                    "record_uuid": record["record_uuid"],
                     "repository_id": int(record["repository_id"]),
                     "title": record["title"],
                     "title_fr": record["title_fr"],
@@ -145,21 +144,20 @@ class Record(Resource):
                 }
             return this_record
 
-    def put(self, record_id):
-        record_id = int(record_id)
+    def put(self, record_uuid):
         body = request.json
-        get_log().debug("{} PUT /records/{} - {}".format(request.remote_addr, record_id, request.json))
+        get_log().debug("{} PUT /records/{} - {}".format(request.remote_addr, record_uuid, request.json))
 
         # filter the json body passed in to only allow fields with keys in the 
         # self.editable_fields
         filtered_body = {k:v for k,v in body.items() if k in self.editable_fields}
 
         try:
-            get_db().update_record(record_id, filtered_body)
+            get_db().update_record(record_uuid, filtered_body)
         except Exception as e:
             get_log().debug(e)
 
-        response = self.get(record_id)
+        response = self.get(record_uuid)
         return response
 
 
@@ -184,7 +182,7 @@ class Default(Resource):
 
 api.add_resource(RepoList, '/repos')
 api.add_resource(Repo, '/repos/<repo_id>')
-api.add_resource(Record, '/records/<record_id>')
+api.add_resource(Record, '/records/<record_uuid>')
 api.add_resource(Exporter, '/exporter')
 api.add_resource(Default, '/')
 

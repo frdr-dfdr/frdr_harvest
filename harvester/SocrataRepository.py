@@ -23,14 +23,15 @@ class SocrataRepository(HarvestRepository):
             "abort_after_numerrors": self.abort_after_numerrors, "max_records_updated_per_run": self.max_records_updated_per_run,
             "update_log_after_numitems": self.update_log_after_numitems, "record_refresh_days": self.record_refresh_days,
             "repo_refresh_days": self.repo_refresh_days, "homepage_url": self.homepage_url,
-            "repo_oai_name": self.repo_oai_name
+            "repo_oai_name": self.repo_oai_name,
+            "repo_registry_uri": self.repo_registry_uri
         }
         self.repository_id = self.db.update_repo(**kwargs)
         records = self.socratarepo.datasets()
 
         item_count = 0
         for rec in records:
-            self.db.write_header(rec["resource"]["id"], self.repository_id)
+            self.db.write_header(rec["resource"]["id"], self.item_url_pattern, self.repository_id)
             item_count = item_count + 1
             if (item_count % self.update_log_after_numitems == 0):
                 tdelta = time.time() - self.tstart + 0.1

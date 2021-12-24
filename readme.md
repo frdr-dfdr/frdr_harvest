@@ -49,7 +49,7 @@ Configuration is split into two files:
 }
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-You can call the crawler directly, which will run once, crawl all of the target domains, export metadata, and exit, by using `globus_harvester.py`.
+You can call the crawler directly, which will run once, crawl all of the target domains, export metadata, and exit, by using `harvester.py`.
 
 You can also run it with `--onlyharvest` or `--onlyexport` if you want to skip the metadata export or crawling stages, respectively. There are two export formats which may be specified with the `--export-format` option: `dataverse` and `gmeta`. You can also use `--only-new-records` to only export records that have changed since the last run.
 

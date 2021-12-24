@@ -143,7 +143,8 @@ class OAIRepository(HarvestRepository):
             "update_log_after_numitems": self.update_log_after_numitems,
             "record_refresh_days": self.record_refresh_days,
             "repo_refresh_days": self.repo_refresh_days, "homepage_url": self.homepage_url,
-            "repo_oai_name": self.repo_oai_name
+            "repo_oai_name": self.repo_oai_name,
+            "repo_registry_uri": self.repo_registry_uri
         }
         self.repository_id = self.db.update_repo(**kwargs)
         item_count = 0
@@ -270,15 +271,15 @@ class OAIRepository(HarvestRepository):
             record["creator"] = []
             record["affiliation"] = []
 
-            if frdr_xml.find("{http://datacite.org/schema/kernel-4}creators"):
+            if len(frdr_xml.find("{http://datacite.org/schema/kernel-4}creators")) > 0:
                 for creator_xml in list(frdr_xml.find("{http://datacite.org/schema/kernel-4}creators")):
                     record["creator"].append(creator_xml.find("{http://datacite.org/schema/kernel-4}creatorName").text)
                     for affiliation_xml in creator_xml.findall("{http://datacite.org/schema/kernel-4}affiliation"):
                         if affiliation_xml.get("affiliationIdentifier"):
-                            record["affiliation"].append({"affiliation_name": affiliation_xml.text,
+                            record["affiliation"].append({"affiliation_name": affiliation_xml.text.strip(),
                                                           "affiliation_ror": affiliation_xml.get("affiliationIdentifier")})
                         else:
-                            record["affiliation"].append(affiliation_xml.text)
+                            record["affiliation"].append(affiliation_xml.text.strip())
 
             if "dateissued" in record:
                 record["pub_date"] = record["dateissued"]

@@ -32,7 +32,8 @@ class CSWRepository(HarvestRepository):
             "update_log_after_numitems": self.update_log_after_numitems,
             "record_refresh_days": self.record_refresh_days,
             "repo_refresh_days": self.repo_refresh_days, "homepage_url": self.homepage_url,
-            "repo_oai_name": self.repo_oai_name
+            "repo_oai_name": self.repo_oai_name,
+            "repo_registry_uri": self.repo_registry_uri
         }
         self.repository_id = self.db.update_repo(**kwargs)
 
@@ -48,14 +49,12 @@ class CSWRepository(HarvestRepository):
                 self.cswrepo.getrecords2()
 
             for rec in self.cswrepo.records:
-                self.db.write_header(self.cswrepo.records[rec].identifier, self.repository_id)
+                self.db.write_header(self.cswrepo.records[rec].identifier, self.item_url_pattern, self.repository_id)
                 item_count = item_count + 1
                 if (item_count % self.update_log_after_numitems == 0):
                     tdelta = time.time() - self.tstart + 0.1
-                    self.logger.info("Done {} item headers after {} ({:.1f} items/sec)".format(item_count,
-                                                                                               self.formatter.humanize(
-                                                                                                   tdelta),
-                                                                                               item_count / tdelta))
+                    self.logger.info("Done {} item headers after {} ({:.1f} items/sec)".format(
+                        item_count, self.formatter.humanize(tdelta), item_count / tdelta))
             if item_count >= self.cswrepo.results['matches']:
                 break
 

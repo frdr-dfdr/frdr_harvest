@@ -65,7 +65,7 @@ def query_repository(repo_name, index_uuid, token, display_results=False):
     :return: List of result ids
     """
 
-    LOGGER.info("Querying index %s for repository %s" % (index_uuid, repo_name))
+    LOGGER.info("Querying index %s for repository %s" % (index_uuid, repo_name)) #lgtm [py/clear-text-logging-sensitive-data]
     querylimit = 20
     headers = {'Authorization' : ('Bearer ' + token), 'Content-Type' : 'application/json'}
     queryobj = {"@datatype": "GSearchRequest", "@version": "2016-11-09", "advanced": True, "offset": 0,

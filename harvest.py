@@ -1,7 +1,7 @@
-"""Globus Harvester.
+"""FRDR Harvester
 
 Usage:
-  globus_harvester.py [--openrefine-import | --onlyharvest | --onlyexport | --init] [--only-new-records] [--dump-on-failure] [--export-filepath=<file>] [--export-format=<format>] [--repository-id=<id>] [--openrefine-csv=<file>]
+  harvest.py [--openrefine-import | --onlyharvest | --onlyexport | --init] [--only-new-records] [--dump-on-failure] [--export-filepath=<file>] [--export-format=<format>] [--repository-id=<id>] [--openrefine-csv=<file>]
 
 Options:
   --openrefine-import       Don't harvest or export normally; import data from OpenRefine.
@@ -11,7 +11,7 @@ Options:
   --dump-on-failure         If a record ever fails validation, print the whole record.
   --export-filepath=<file>  The path to export the data to.
   --openrefine-csv=<file>   The CSV from OpenRefine to import.
-  --export-format=<format>  The export format (currently gmeta or xml).
+  --export-format=<format>  The export format (currently gmeta or dataverse).
   --repository-id=<id>      Only export this repository, based on the database table ID
   --init                    Just initialize the database, do not harvest or export.
 

@@ -39,7 +39,8 @@ class DryadRepository(HarvestRepository):
             "update_log_after_numitems": self.update_log_after_numitems,
             "record_refresh_days": self.record_refresh_days,
             "repo_refresh_days": self.repo_refresh_days, "homepage_url": self.homepage_url,
-            "repo_oai_name": self.repo_oai_name
+            "repo_oai_name": self.repo_oai_name,
+            "repo_registry_uri": self.repo_registry_uri
         }
         self.repository_id = self.db.update_repo(**kwargs)
 
@@ -60,14 +61,12 @@ class DryadRepository(HarvestRepository):
                 for record in records:
                     if '_links' in record and record['_links']:
                         item_identifier = record["identifier"]
-                        self.db.write_header(item_identifier, self.repository_id)
+                        self.db.write_header(item_identifier, self.item_url_pattern, self.repository_id)
                         item_count = item_count + 1
                         if (item_count % self.update_log_after_numitems == 0):
                             tdelta = time.time() - self.tstart + 0.1
-                            self.logger.info("Done {} item headers after {} ({:.1f} items/sec)".format(item_count,
-                                                                                                           self.formatter.humanize(
-                                                                                                               tdelta),
-                                                                                                           item_count / tdelta))
+                            self.logger.info("Done {} item headers after {} ({:.1f} items/sec)".format(
+                                item_count, self.formatter.humanize(tdelta), item_count / tdelta))
                 if 'next' in response['_links']:
                     url = self.url.replace("/api/v2", "") + response['_links']['next']['href']
                     r = requests.request("GET", url, headers=self.headers, params=querystring)
