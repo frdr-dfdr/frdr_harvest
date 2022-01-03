@@ -69,10 +69,6 @@ class NexusRepository(HarvestRepository):
 
         nexus_record = nexus_dats_json
 
-        # TODO re-check on full run
-        # for key in nexus_record.keys():
-        #     print("{}||{}".format(key, type(nexus_record[key])))
-
         record = {}
 
         record["series"] = ""
@@ -113,10 +109,9 @@ class NexusRepository(HarvestRepository):
 
         # Subjects
         if ("isAbout" in nexus_record) and nexus_record["isAbout"]:
-            if isinstance(nexus_record["isAbout"], list):
-                isAbout_list = nexus_record["isAbout"]
-            else:
-                isAbout_list = [nexus_record["isAbout"]]
+            isAbout_list = nexus_record["isAbout"]
+            if not isinstance(isAbout_list, list):
+                isAbout_list = [isAbout_list]
             record["subjects"] = []
             for subject in isAbout_list:
                 if ("name" in subject) and subject["name"]:
@@ -131,7 +126,7 @@ class NexusRepository(HarvestRepository):
         if ("name" in nexus_record) and nexus_record["name"]:
             record["title"] = nexus_record["name"]
             if isinstance(record["title"], list):
-                if len(set(record["title"]) == 1):
+                if len(set(record["title"])) == 1:
                     record["title"] = record["title"][0]
                 else:
                     self.logger.error("Record {} has multiple titles: {}".format(record["identifier"], record["title"]))
@@ -159,13 +154,27 @@ class NexusRepository(HarvestRepository):
             else:
                 record["access"] = "Unknown"
 
-        # TODO: "acknowledges", "citations", "primaryPublications" for related publications
+        # TODO: "acknowledges", "citations", "primaryPublications", "relatedIdentifiers" for related publications
+        # TODO: add related DOIs (these don't resolve to CONP)
+        # if ("identifier" in nexus_record) and nexus_record["identifier"]:
+        #     identifiers_list = nexus_record["identifier"]
+        #     if not isinstance(identifiers_list, list):
+        #         identifiers_list = [identifiers_list]
+        #     for identifier in identifiers_list:
+        #         if "identifierSource" in identifier and identifier["identifierSource"].lower() in ["doi",
+        #                                                                                            "zenodo doi"]:
+        #             if "identifier" in identifier and identifier["identifier"] != "dummy":
+        #                 if "doi.org" not in identifier["identifier"]:
+        #                     if identifier["identifier"][:3] == "10.":
+        #                         identifier["identifier"] = "https://doi.org/" + identifier["identifier"]
+        #                 elif "http://doi.org" in identifier["identifier"]:
+        #                     identifier["identifier"] = identifier["identifier"].replace("http://doi.org",
+        #                                                                                 "https://doi.org")
 
         if ("sdo:creator" in nexus_record) and nexus_record["sdo:creator"]:
-            if isinstance(nexus_record["sdo:creator"], list):
-                creators_list = nexus_record["sdo:creator"]
-            else:
-                creators_list = [nexus_record["sdo:creator"]]
+            creators_list = nexus_record["sdo:creator"]
+            if not isinstance(creators_list, list):
+                creators_list = [creators_list]
             record["creator"] = []
             for creator in creators_list:
                 if ("name" in creator) and creator["name"]:
@@ -174,18 +183,16 @@ class NexusRepository(HarvestRepository):
         # Keywords
         record["tags"] = []
         if ("sdo:keywords" in nexus_record) and nexus_record["sdo:keywords"]:
-            if isinstance(nexus_record["sdo:keywords"], list):
-                keywords_list = nexus_record["sdo:keywords"]
-            else:
-                keywords_list = [nexus_record["sdo:keywords"]]
+            keywords_list = nexus_record["sdo:keywords"]
+            if not isinstance(keywords_list, list):
+                keywords_list = [keywords_list]
             for keyword in keywords_list:
                 if ("value" in keyword) and keyword["value"]:
                         record["tags"].append(keyword["value"])
         if ("keywords" in nexus_record) and nexus_record["keywords"]:
-            if isinstance(nexus_record["keywords"], list):
-                keywords_list = nexus_record["keywords"]
-            else:
-                keywords_list = [nexus_record["keywords"]]
+            keywords_list = nexus_record["keywords"]
+            if not isinstance(keywords_list, list):
+                keywords_list = [keywords_list]
             for keyword in keywords_list:
                 if ("value" in keyword) and keyword["value"]:
                         record["tags"].append(keyword["value"])
@@ -236,10 +243,9 @@ class NexusRepository(HarvestRepository):
         # Geographic places
         if ("spatialCoverage" in nexus_record) and nexus_record["spatialCoverage"]:
             record["geoplaces"] = []
-            if isinstance(nexus_record["spatialCoverage"], list):
-                places_list = nexus_record["spatialCoverage"]
-            else:
-                places_list = [nexus_record["spatialCoverage"]]
+            places_list = nexus_record["spatialCoverage"]
+            if not isinstance(places_list, list):
+                places_list = [places_list]
             for place in places_list:
                 if ("name" in place) and place["name"]:
                     record["geoplaces"].append({"place_name": place["name"]})
