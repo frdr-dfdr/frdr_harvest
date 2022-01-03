@@ -169,7 +169,32 @@ class Exporter(Resource):
         get_log().debug("{} GET /exporter".format(request.remote_addr))
 
         return Response(_generate_resp()) 
-        
+
+
+class BBoxes(Resource):
+    editable_fields = ["northLat", "southLat", "eastLon", "westLon", "geoserver_id", "record_id"]
+
+    def put(self, record_uuid):
+        # TODO finish this when structure of bbox table is set
+        body = request.json
+        bboxes = body["bboxes"]
+        for box in bboxes:
+            north_lat = box["northLat"]
+            south_lat = box["southLat"]
+            east_lon = box["eastLon"]
+            west_lon = box["westLon"]
+            geoserver_id = box["geoserverID"]
+            file_name = box["fileName"]
+
+            try:
+                get_db().add_file_bbox(north_lat, south_lat, east_lon, west_lon, record_uuid, geoserver_id, file_name)
+            except Exception as e:
+                get_log().debug(e)
+
+        response = self.get(record_uuid)
+        return response
+
+
 
 # Default response
 class Default(Resource):
@@ -185,6 +210,7 @@ api.add_resource(Repo, '/repos/<repo_id>')
 api.add_resource(Record, '/records/<record_uuid>')
 api.add_resource(Exporter, '/exporter')
 api.add_resource(Default, '/')
+api.add_resource(BBoxes, '/bboxes/<record_uuid>')
 
 if __name__ == '__main__':
     CONFIG["restapi"] = get_config_ini("conf/restapi.conf")
