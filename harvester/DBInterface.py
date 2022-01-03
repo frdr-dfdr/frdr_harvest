@@ -1023,3 +1023,10 @@ class DBInterface:
         if long > 180 or long < -180:
             return False
         return True
+
+    def add_file_bbox(self, northLat, southLat, eastLon, westLon, uuid, geoserver_id, file_name):
+        bboxidcolumn = self.get_table_id_column("bboxes")
+        extras = {"westLon": westLon, "eastLon": eastLon,
+                  "northLat": northLat, "southLat": southLat, "geoserver_id": geoserver_id, "file_name": file_name}
+        # TODO implement based on the new bounding box design
+
