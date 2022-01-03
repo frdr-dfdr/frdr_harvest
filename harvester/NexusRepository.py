@@ -194,11 +194,15 @@ class NexusRepository(HarvestRepository):
             record["pub_date"] = parser.parse(nexus_record["_createdAt"]).strftime('%Y-%m-%d')
 
         # Prefer more specific dates if available
+        dates_list = []
         if ("dates" in nexus_record) and nexus_record["dates"]:
-            if isinstance(nexus_record["dates"], list):
-                dates_list = nexus_record["dates"]
-            else:
-                dates_list = [nexus_record["dates"]]
+            dates_list = nexus_record["dates"]
+            if not isinstance(dates_list, list):
+                dates_list = [dates_list]
+        if ("sdo:temporalCoverage" in nexus_record) and nexus_record["sdo:temporalCoverage"]:
+            # sometimes temporalCoverage includes type "release date" or "conp dats json fileset creation date"
+            dates_list.append(nexus_record["sdo:temporalCoverage"])
+
             for date_entry in dates_list:
                 date = ""
                 date_type = ""
@@ -210,19 +214,17 @@ class NexusRepository(HarvestRepository):
                     elif isinstance(date_date, str) and "type" in date_entry:
                         date = date_date
                         date_type = date_entry["type"]
-                    else:
-                        print("invalid date")
                     date_type = date_type.lower().strip()
 
                     try:
-                        parser.parse(date).strftime('%Y-%m-%d')
+                        date = parser.parse(date).strftime('%Y-%m-%d')
                         if date_type in ["date created", "release date", "first published", "publication date"]:
                             record["pub_date"] = date
                         elif date_type in ["date modified", "last update date", "conp dats json fileset creation date"]:
                             if date < record["pub_date"]:
                                 record["pub_date"] = date
                         elif date_type not in ["start date", "end date", "reference data download date", "first data collection", "last data collection", "this dataset was published in june 2019 in the journal of federation of american societies for experimental biology"]:
-                            print("unknown type - date: {} type: {}".format(date, date_type))
+                            self.logger.errror("Record {} has unknown date type: date - {} type - {}".format(record["identifier"], date, date_type))
                     except:
                         self.logger.error("Record {} failed to parse date: {}".format(record["identifier"], date))
                 else:
