@@ -81,14 +81,31 @@ class NexusRepository(HarvestRepository):
         if ("_self" in nexus_record) and nexus_record["_self"]:
             record["identifier"] = nexus_dats_json["_self"]
 
+        # Delete deprecated records
+        if "_deprecated" in nexus_record and nexus_record["_deprecated"]: # FIXME use me
+            return False
+
         # Item URL
         if ("conp_portal_website" in nexus_record) and nexus_record["conp_portal_website"]:
             if ("@id" in nexus_record["conp_portal_website"]) and nexus_record["conp_portal_website"]["@id"]:
                 record["item_url"] = nexus_record["conp_portal_website"]["@id"]
 
-        if "item_url" not in record: # TODO investigate items missing URLs
-            self.logger.error("Record {} missing item_url".format(record["identifier"]))
-            return None
+        if "item_url" not in record: # use sdo:distribution accessMode (usually OSF URL) as backup item_url
+            if ("sdo:distribution" in nexus_record) and nexus_record["sdo:distribution"]:
+                distribution_urls = []
+                distribution_list = nexus_record["sdo:distribution"]
+                if not isinstance(distribution_list, list):
+                    distribution_list = [distribution_list]
+                for distribution in distribution_list:
+                    if ("sdo:accessMode" in distribution) and distribution["sdo:accessMode"]:
+                        if ("valueIRI" in distribution["sdo:accessMode"]) and distribution["sdo:accessMode"]["valueIRI"]:
+                            distribution_urls.append(distribution["sdo:accessMode"]["valueIRI"])
+                distribution_urls = list(set(distribution_urls))
+                if len(distribution_urls) == 1:
+                    record["item_url"] = distribution_urls[0]
+            if "item_url" not in record:
+                self.logger.error("Record {} missing item_url".format(record["identifier"]))
+                return None
 
         # Description
         if ("description" in nexus_record) and nexus_record["description"]:
@@ -243,7 +260,7 @@ class NexusRepository(HarvestRepository):
                 self.db.write_record(oai_record, self)
             else:
                 if oai_record is False:
-                    # This record is not a dataset, remove it from the results
+                    # This record is deprecated, remove it from the results
                     self.db.delete_record(record)
                 else:
                     # Some other problem, this record will be updated by a future crawl
