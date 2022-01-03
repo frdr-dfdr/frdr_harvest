@@ -2,7 +2,6 @@ from harvester.HarvestRepository import HarvestRepository
 from harvester.rate_limited import rate_limited
 from dateutil import parser
 import time
-import json
 import requests
 
 
@@ -78,7 +77,7 @@ class NexusRepository(HarvestRepository):
             record["identifier"] = nexus_dats_json["_self"]
 
         # Delete deprecated records
-        if "_deprecated" in nexus_record and nexus_record["_deprecated"]: # FIXME use me
+        if "_deprecated" in nexus_record and nexus_record["_deprecated"]:
             return False
 
         # Item URL
@@ -86,7 +85,7 @@ class NexusRepository(HarvestRepository):
             if ("@id" in nexus_record["conp_portal_website"]) and nexus_record["conp_portal_website"]["@id"]:
                 record["item_url"] = nexus_record["conp_portal_website"]["@id"]
 
-        if "item_url" not in record: # use sdo:distribution accessMode (usually OSF URL) as backup item_url
+        if "item_url" not in record:  # use sdo:distribution accessMode (usually OSF URL) as backup item_url
             if ("sdo:distribution" in nexus_record) and nexus_record["sdo:distribution"]:
                 distribution_urls = []
                 distribution_list = nexus_record["sdo:distribution"]
@@ -178,7 +177,7 @@ class NexusRepository(HarvestRepository):
             record["creator"] = []
             for creator in creators_list:
                 if ("name" in creator) and creator["name"]:
-                        record["creator"] = creator["name"]
+                    record["creator"] = creator["name"]
 
         # Keywords
         record["tags"] = []
@@ -188,14 +187,14 @@ class NexusRepository(HarvestRepository):
                 keywords_list = [keywords_list]
             for keyword in keywords_list:
                 if ("value" in keyword) and keyword["value"]:
-                        record["tags"].append(keyword["value"])
+                    record["tags"].append(keyword["value"])
         if ("keywords" in nexus_record) and nexus_record["keywords"]:
             keywords_list = nexus_record["keywords"]
             if not isinstance(keywords_list, list):
                 keywords_list = [keywords_list]
             for keyword in keywords_list:
                 if ("value" in keyword) and keyword["value"]:
-                        record["tags"].append(keyword["value"])
+                    record["tags"].append(keyword["value"])
 
         if ("_createdAt" in nexus_record) and nexus_record["_createdAt"]:
             record["pub_date"] = parser.parse(nexus_record["_createdAt"]).strftime('%Y-%m-%d')
