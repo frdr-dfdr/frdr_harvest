@@ -1,0 +1,2 @@
+ALTER TABLE geobbox
+ADD COLUMN geofile_id INTEGER;
