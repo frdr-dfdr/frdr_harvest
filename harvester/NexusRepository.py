@@ -12,7 +12,7 @@ class NexusRepository(HarvestRepository):
         self.metadataprefix = "nexus"
         super(NexusRepository, self).setRepoParams(repoParams)
         self.domain_metadata = []
-        self.headers = {'accept': 'application/ld+json'}
+        self.headers = {"accept": "application/ld+json"}
 
     def _crawl(self):
         kwargs = {
@@ -132,26 +132,18 @@ class NexusRepository(HarvestRepository):
                     return None
 
         # Access
+        record["access"] = "Unknown"
         if ("privacy" in nexus_record) and nexus_record["privacy"]:
-            if isinstance(nexus_record["privacy"], str):
-                if nexus_record["privacy"].lower() in ["open", "public", "public open"]:
+            privacy_list = []
+            if isinstance(nexus_record["privacy"], list):
+                privacy_list = [x.lower() for x in nexus_record["privacy"]]
+            elif isinstance(nexus_record["privacy"], str):
+                privacy_list = [nexus_record["privacy"].lower()]
+            if "available" in privacy_list:
+                if "open" in privacy_list:
                     record["access"] = "Public"
-                elif nexus_record["privacy"].lower() in ["private", "registered access", "registered"]:
+                elif "private" in privacy_list or "registered" in privacy_list:
                     record["access"] = "Restricted"
-                else:
-                    record["access"] = "Unknown"
-            elif isinstance(nexus_record["privacy"], list):
-                if "available" in nexus_record["privacy"]:
-                    if "open" in nexus_record["privacy"]:
-                        record["access"] = "Public"
-                    elif "private" in nexus_record["privacy"] or "registered" in nexus_record["privacy"]:
-                        record["access"] = "Restricted"
-                    else:
-                        record["access"] = "Unknown"
-                else:
-                    record["access"] = "Unknown"
-            else:
-                record["access"] = "Unknown"
 
         # TODO: "acknowledges", "citations", "primaryPublications", "relatedIdentifiers" for related publications
         # TODO: add related DOIs (these don't resolve to CONP)
