@@ -64,9 +64,7 @@ class NexusRepository(HarvestRepository):
 
         return False
 
-    def format_nexus_to_oai(self, nexus_dats_json):
-
-        nexus_record = nexus_dats_json
+    def format_nexus_to_oai(self, nexus_record):
 
         record = {}
 
@@ -74,7 +72,7 @@ class NexusRepository(HarvestRepository):
         record["title_fr"] = ""
 
         if ("_self" in nexus_record) and nexus_record["_self"]:
-            record["identifier"] = nexus_dats_json["_self"]
+            record["identifier"] = nexus_record["_self"]
 
         # Delete deprecated records
         if "_deprecated" in nexus_record and nexus_record["_deprecated"]:
