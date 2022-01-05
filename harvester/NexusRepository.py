@@ -186,6 +186,7 @@ class NexusRepository(HarvestRepository):
                 if ("value" in keyword) and keyword["value"]:
                     record["tags"].append(keyword["value"])
 
+        # Publication date
         if ("_createdAt" in nexus_record) and nexus_record["_createdAt"]:
             record["pub_date"] = parser.parse(nexus_record["_createdAt"]).strftime('%Y-%m-%d')
 
@@ -219,8 +220,6 @@ class NexusRepository(HarvestRepository):
                         elif date_type in ["date modified", "last update date", "conp dats json fileset creation date"]:
                             if date < record["pub_date"]:
                                 record["pub_date"] = date
-                        elif date_type not in ["start date", "end date", "reference data download date", "first data collection", "last data collection", "this dataset was published in june 2019 in the journal of federation of american societies for experimental biology"]:
-                            self.logger.error("Record {} has unknown date type: date - {} type - {}".format(record["identifier"], date, date_type))
                     except Exception as e:
                         self.logger.error("Record {} failed to parse date: {}".format(record["identifier"], date))
                 else:
