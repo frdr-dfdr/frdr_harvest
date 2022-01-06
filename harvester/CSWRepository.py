@@ -77,12 +77,23 @@ class CSWRepository(HarvestRepository):
 
         record = {}
 
-        # todo Examples for reference:
-        "https://hecate.hakai.org/geonetwork/srv/api/records/23bc8c35-2e4e-4382-9296-a52d5ea49889/formatters/xml"
-        "https://hecate.hakai.org/geonetwork/srv/api/records/e2d3d616-9ee2-451f-8584-14801b4c6fd0/formatters/xml"
+        # todo Examples:
+        # "https://hecate.hakai.org/geonetwork/srv/api/records/23bc8c35-2e4e-4382-9296-a52d5ea49889/formatters/xml"
+        # "https://hecate.hakai.org/geonetwork/srv/api/records/e2d3d616-9ee2-451f-8584-14801b4c6fd0/formatters/xml"
+        # todo Documentation:
+        # https://docs.meridian.cs.dal.ca/metadata/Metadata.html is useful as a rough guide to ISO 19115, although they made changes
 
-        # todo https://docs.meridian.cs.dal.ca/metadata/Metadata.html is useful as a rough guide to ISO 19115, although they made changes
+        # Shortcuts to frequently used nodes:
+        data_identification = csw_record.find("gmd:identificationInfo", csw_record.nsmap).find(
+            "gmd:MD_DataIdentification", csw_record.nsmap)
+        citation = data_identification.find("gmd:citation", csw_record.nsmap).find("gmd:CI_Citation", csw_record.nsmap)
 
+        # Title and description
+        record["identifier"] = local_identifier
+        record["series"] = ""
+        record["title"] = get_gco_CharacterString(citation.find("gmd:title", csw_record.nsmap)).strip()
+        record["title_fr"] = ""
+        record["description"] = get_gco_CharacterString(data_identification.find("gmd:abstract", csw_record.nsmap))
 
         # Item URL: use DOI if available
         try:
@@ -96,42 +107,34 @@ class CSWRepository(HarvestRepository):
         if csw_record.find("gmd:dataSetURI", csw_record.nsmap) is not None:
             record["item_url"] = csw_record.find("gmd:dataSetURI", csw_record.nsmap).find("gco:CharacterString",csw_record.nsmap).text
 
-        # Shortcuts to frequently used nodes:
-        data_identification = csw_record.find("gmd:identificationInfo", csw_record.nsmap).find("gmd:MD_DataIdentification", csw_record.nsmap)
-        citation = data_identification.find("gmd:citation", csw_record.nsmap).find("gmd:CI_Citation", csw_record.nsmap)
-
-        # Creators and affiliations
+        # Creators, affiliations
         ci_responsible_parties = []
         record["creators"] = []
         record["affiliations"] = []
 
-        # gmd:contact / gmd:CI_ResponsibleParty
+        # Get responsible parties from gmd:contact
         ci_responsible_parties.extend(csw_record.find("gmd:contact", csw_record.nsmap).findall("gmd:CI_ResponsibleParty", csw_record.nsmap))
 
-        # gmd:identificationInfo / gmd:MD_DataIdentification / gmd:citation / gmd:CI_Citation / gmd:citedResponsibleParty / gmd:CI_ResponsibleParty
+        # Get responsible parties from gmd:identificationInfo / gmd:MD_DataIdentification / gmd:citation / gmd:CI_Citation / gmd:citedResponsibleParty
         for citedResponsibleParty in citation.findall("gmd:citedResponsibleParty", csw_record.nsmap):
             ci_responsible_parties.append(citedResponsibleParty.find("gmd:CI_ResponsibleParty", csw_record.nsmap))
 
-        # gmd:identificationInfo / gmd:MD_DataIdentification / gmd:pointOfContact / gmd:CI_ResponsibleParty
+        # Get responsible parties from gmd:identificationInfo / gmd:MD_DataIdentification / gmd:pointOfContact
         for pointOfContact in data_identification.findall("gmd:pointOfContact", csw_record.nsmap):
             ci_responsible_parties.append(pointOfContact.find("gmd:CI_ResponsibleParty", csw_record.nsmap))
 
+        # Extract creators and affiliations from responsible parties
         for ci_responsible_party in ci_responsible_parties:
-            if ci_responsible_party.find("gmd:individualName", csw_record.nsmap) is not None:
+            if ci_responsible_party.find("gmd:individualName", csw_record.nsmap) is not None:  # Individual creator
                 record["creators"].append(get_gco_CharacterString(ci_responsible_party.find("gmd:individualName", csw_record.nsmap)))
-                if ci_responsible_party.find("gmd:organisationName", csw_record.nsmap) is not None:
+                if ci_responsible_party.find("gmd:organisationName", csw_record.nsmap) is not None:  # Individual creator has affiliation
                     record["affiliations"].append(get_gco_CharacterString(ci_responsible_party.find("gmd:organisationName", csw_record.nsmap)))
+            elif ci_responsible_party.find("gmd:organisationName", csw_record.nsmap) is not None:  # Organizational creator
+                record["creators"].append(get_gco_CharacterString(ci_responsible_party.find("gmd:organisationName", csw_record.nsmap)))
 
-        # Remove duplicates
+        # Remove duplicates from creators and affiliations
         record["creators"] = list(set(record["creators"]))
         record["affiliations"] = list(set(record["affiliations"]))
-
-        # Title
-        record["title"] = get_gco_CharacterString(citation.find("gmd:title", csw_record.nsmap)).strip()
-        record["title_fr"] = ""
-
-        # Description
-        record["description"] = get_gco_CharacterString(data_identification.find("gmd:abstract", csw_record.nsmap))
 
         # Publication date
         citation_dates = {}
@@ -158,13 +161,13 @@ class CSWRepository(HarvestRepository):
             self.logger.error("Record {} missing publication, revision, and creation dates")  # TODO investigate if this happens
 
 
-
         # TODO  keywords - tags, subjects(?)
         record["tags"] = []
         record["subject"] = []
         # TODO rights
         # TODO access
 
+        # If record is French, swap fields
         language = ""
         if csw_record.find("gmd:language", csw_record.nsmap).find("gmd:LanguageCode", csw_record.nsmap) is not None:
             language = csw_record.find("gmd:language", csw_record.nsmap).find("gmd:LanguageCode", csw_record.nsmap).attrib["codeListValue"]
@@ -180,9 +183,6 @@ class CSWRepository(HarvestRepository):
             record["subject"] = []
             record["description_fr"] = record["description"]
             record["description"] = ""
-
-        record["identifier"] = local_identifier
-        record["series"] = ""
 
         # TODO update to use iso 19139
         # if csw_record.bbox:
