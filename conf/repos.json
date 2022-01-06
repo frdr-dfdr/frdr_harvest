@@ -1,4 +1,14 @@
 {
     "repos": [
+      {
+          "name": "Hakai Institute",
+          "type": "csw",
+          "url": "https://hecate.hakai.org/geonetwork/srv/api/records/",
+          "homepage_url": "https://hecate.hakai.org/",
+          "thumbnail": "https://{{ web_hostname }}/discover/img/sources/hakai_80x80.png",
+          "item_url_pattern": "https://hecate.hakai.org/geonetwork/srv/eng/catalog.search#/metadata/%id%",
+          "repo_registry_uri": "https://www.re3data.org/repository/r3d100013227",
+          "enabled": true
+      }
     ]
 }
