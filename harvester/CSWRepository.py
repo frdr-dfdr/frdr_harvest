@@ -5,7 +5,7 @@ import requests
 import lxml.etree as ET
 from rdflib import Graph, DCAT
 from dateutil import parser
-from uuid import UUID
+import urllib
 
 class CSWRepository(HarvestRepository):
     """ CSW Repository """
@@ -45,13 +45,9 @@ class CSWRepository(HarvestRepository):
                     time.sleep(1)
 
             item_count = 0
-            for s, p, o in g.triples((None, DCAT.dataset, None)):
+            for s, p, o in g.triples((None, None, DCAT.CatalogRecord)):
                 # Get record identifier
-                split_url = "https://hecate.hakai.org/geonetwork/srv/metadata//datasets/"
-                if "https://hecate.hakai.org/geonetwork/srv/metadata/" in o.split(split_url)[-1]:
-                    identifier = o.split(split_url)[-1].split("https://hecate.hakai.org/geonetwork/srv/metadata/")[-1]
-                else:
-                    identifier = o.split(split_url)[-1]
+                identifier = s.split("https://hecate.hakai.org/geonetwork/srv/metadata//records/")[-1]
                 self.db.write_header(identifier, self.item_url_pattern, self.repository_id)
                 item_count = item_count + 1
                 if (item_count % self.update_log_after_numitems == 0):
@@ -102,16 +98,10 @@ class CSWRepository(HarvestRepository):
         record["description"] = get_gco_CharacterString(find_ns(data_identification, "gmd:abstract"))
 
         # Item URL: use DOI if available
-        try:
-            local_uuid = UUID(local_identifier) # Check if identifier is a valid UUID
-            record["item_url"] = self.item_url_pattern.replace("%id%", local_identifier)
-        except ValueError:
-            self.logger.info("Not a UUID: {}".format(local_identifier))
-            if local_identifier.startswith("http"):
-                record["item_url"] = local_identifier
-
-        if csw_record.find("gmd:dataSetURI", csw_record.nsmap) is not None:
-            record["item_url"] = csw_record.find("gmd:dataSetURI", csw_record.nsmap).find("gco:CharacterString",csw_record.nsmap).text
+        record["item_url"] = self.item_url_pattern.replace("%id%", local_identifier)
+        if find_ns(csw_record, "gmd:dataSetURI") is not None:
+            # FIXME not always a url, may need to add https://doi.org/
+            record["item_url"] = get_gco_CharacterString(find_ns(csw_record, "gmd:dataSetURI"))
 
         # Creators, affiliations
         ci_responsible_parties = []
