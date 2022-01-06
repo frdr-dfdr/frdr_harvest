@@ -69,10 +69,17 @@ class CSWRepository(HarvestRepository):
         return False
 
     def format_csw_to_oai(self, csw_record, local_identifier):
+        def find_ns(parent, tag):
+            if len(parent.findall(tag, csw_record.nsmap)) > 1:
+                self.logger.info("find_ns() called on element with more than one child: {}, {}".format(parent.tag, tag))
+            return parent.find(tag, csw_record.nsmap)
+
+        def findall_ns(parent, tag):
+            return parent.findall(tag, csw_record.nsmap)
+
         def get_gco_CharacterString(element):
-            if isinstance(element, ET._Element):
-                if element.find("gco:CharacterString", csw_record.nsmap) is not None:
-                    return element.find("gco:CharacterString", csw_record.nsmap).text
+            if find_ns(element, "gco:CharacterString") is not None:
+                return find_ns(element, "gco:CharacterString").text
             return None
 
         record = {}
@@ -84,16 +91,15 @@ class CSWRepository(HarvestRepository):
         # https://docs.meridian.cs.dal.ca/metadata/Metadata.html is useful as a rough guide to ISO 19115, although they made changes
 
         # Shortcuts to frequently used nodes:
-        data_identification = csw_record.find("gmd:identificationInfo", csw_record.nsmap).find(
-            "gmd:MD_DataIdentification", csw_record.nsmap)
-        citation = data_identification.find("gmd:citation", csw_record.nsmap).find("gmd:CI_Citation", csw_record.nsmap)
+        data_identification = find_ns(find_ns(csw_record, "gmd:identificationInfo"), "gmd:MD_DataIdentification")
+        citation = find_ns(find_ns(data_identification, "gmd:citation"), "gmd:CI_Citation")
 
         # Title and description
         record["identifier"] = local_identifier
         record["series"] = ""
-        record["title"] = get_gco_CharacterString(citation.find("gmd:title", csw_record.nsmap)).strip()
+        record["title"] = get_gco_CharacterString(find_ns(citation, "gmd:title")).strip()
         record["title_fr"] = ""
-        record["description"] = get_gco_CharacterString(data_identification.find("gmd:abstract", csw_record.nsmap))
+        record["description"] = get_gco_CharacterString(find_ns(data_identification, "gmd:abstract"))
 
         # Item URL: use DOI if available
         try:
@@ -113,24 +119,24 @@ class CSWRepository(HarvestRepository):
         record["affiliations"] = []
 
         # Get responsible parties from gmd:contact
-        ci_responsible_parties.extend(csw_record.find("gmd:contact", csw_record.nsmap).findall("gmd:CI_ResponsibleParty", csw_record.nsmap))
+        ci_responsible_parties.extend(findall_ns(find_ns(csw_record, "gmd:contact"), "gmd:CI_ResponsibleParty"))
 
         # Get responsible parties from gmd:identificationInfo / gmd:MD_DataIdentification / gmd:citation / gmd:CI_Citation / gmd:citedResponsibleParty
-        for citedResponsibleParty in citation.findall("gmd:citedResponsibleParty", csw_record.nsmap):
-            ci_responsible_parties.append(citedResponsibleParty.find("gmd:CI_ResponsibleParty", csw_record.nsmap))
+        for citedResponsibleParty in findall_ns(citation, "gmd:citedResponsibleParty"):
+            ci_responsible_parties.append(find_ns(citedResponsibleParty, "gmd:CI_ResponsibleParty"))
 
         # Get responsible parties from gmd:identificationInfo / gmd:MD_DataIdentification / gmd:pointOfContact
-        for pointOfContact in data_identification.findall("gmd:pointOfContact", csw_record.nsmap):
-            ci_responsible_parties.append(pointOfContact.find("gmd:CI_ResponsibleParty", csw_record.nsmap))
+        for pointOfContact in findall_ns(data_identification, "gmd:pointOfContact"):
+            ci_responsible_parties.append(find_ns(pointOfContact, "gmd:CI_ResponsibleParty"))
 
         # Extract creators and affiliations from responsible parties
         for ci_responsible_party in ci_responsible_parties:
-            if ci_responsible_party.find("gmd:individualName", csw_record.nsmap) is not None:  # Individual creator
-                record["creators"].append(get_gco_CharacterString(ci_responsible_party.find("gmd:individualName", csw_record.nsmap)))
-                if ci_responsible_party.find("gmd:organisationName", csw_record.nsmap) is not None:  # Individual creator has affiliation
-                    record["affiliations"].append(get_gco_CharacterString(ci_responsible_party.find("gmd:organisationName", csw_record.nsmap)))
-            elif ci_responsible_party.find("gmd:organisationName", csw_record.nsmap) is not None:  # Organizational creator
-                record["creators"].append(get_gco_CharacterString(ci_responsible_party.find("gmd:organisationName", csw_record.nsmap)))
+            if find_ns(ci_responsible_party, "gmd:individualName") is not None:  # Individual creator
+                record["creators"].append(get_gco_CharacterString(find_ns(ci_responsible_party, "gmd:individualName")))
+                if find_ns(ci_responsible_party, "gmd:organisationName") is not None:  # Individual creator has affiliation
+                    record["affiliations"].append(get_gco_CharacterString(find_ns(ci_responsible_party, "gmd:organisationName")))
+            elif find_ns(ci_responsible_party, "gmd:organisationName") is not None:  # Organizational creator
+                record["creators"].append(get_gco_CharacterString(find_ns(ci_responsible_party, "gmd:organisationName")))
 
         # Remove duplicates from creators and affiliations
         record["creators"] = list(set(record["creators"]))
@@ -138,15 +144,15 @@ class CSWRepository(HarvestRepository):
 
         # Publication date
         citation_dates = {}
-        for date in citation.findall("gmd:date", csw_record.nsmap):
-            ci_date = date.find("gmd:CI_Date", csw_record.nsmap)
+        for date in findall_ns(citation, "gmd:date"):
+            ci_date = find_ns(date, "gmd:CI_Date")
             try:
                 date_value = ""
-                if ci_date.find("gmd:date", csw_record.nsmap).find("gco:Date", csw_record.nsmap) is not None:
-                    date_value = parser.parse(ci_date.find("gmd:date", csw_record.nsmap).find("gco:Date", csw_record.nsmap).text).strftime('%Y-%m-%d')
-                elif ci_date.find("gmd:date", csw_record.nsmap).find("gco:DateTime", csw_record.nsmap) is not None:
-                    date_value = parser.parse(ci_date.find("gmd:date", csw_record.nsmap).find("gco:DateTime", csw_record.nsmap).text).strftime('%Y-%m-%d')
-                date_type = ci_date.find("gmd:dateType", csw_record.nsmap).find("gmd:CI_DateTypeCode", csw_record.nsmap).attrib["codeListValue"]
+                if find_ns(find_ns(ci_date, "gmd:date"), "gco:Date") is not None:
+                    date_value = parser.parse(find_ns(find_ns(ci_date, "gmd:date"), "gco:Date").text).strftime('%Y-%m-%d')
+                elif find_ns(find_ns(ci_date, "gmd:date"), "gco:DateTime") is not None:
+                    date_value = parser.parse(find_ns(find_ns(ci_date, "gmd:date"), "gco:DateTime").text).strftime('%Y-%m-%d')
+                date_type = find_ns(find_ns(ci_date, "gmd:dateType"), "gmd:CI_DateTypeCode").attrib["codeListValue"]
                 citation_dates[date_type] = date_value
             except AttributeError as e:
                 self.logger.error("Record {} encountered error parsing CI_Date: {}".format(local_identifier, e))
@@ -169,10 +175,10 @@ class CSWRepository(HarvestRepository):
 
         # If record is French, swap fields
         language = ""
-        if csw_record.find("gmd:language", csw_record.nsmap).find("gmd:LanguageCode", csw_record.nsmap) is not None:
-            language = csw_record.find("gmd:language", csw_record.nsmap).find("gmd:LanguageCode", csw_record.nsmap).attrib["codeListValue"]
-        elif get_gco_CharacterString(csw_record.find("gmd:language", csw_record.nsmap)) is not None:
-            language = get_gco_CharacterString(csw_record.find("gmd:language", csw_record.nsmap))
+        if find_ns(find_ns(csw_record, "gmd:language"), "gmd:LanguageCode") is not None:
+            language = find_ns(find_ns(csw_record, "gmd:language"), "gmd:LanguageCode").attrib["codeListValue"]
+        elif get_gco_CharacterString(find_ns(csw_record, "gmd:language")) is not None:
+            language = get_gco_CharacterString(find_ns(csw_record, "gmd:language"))
 
         if language == "fre":
             record["title_fr"] = record["title"]
@@ -215,7 +221,7 @@ class CSWRepository(HarvestRepository):
                     request_success = True
                 elif response.status_code == 400:
                     request_count += 1
-                    self.logger.info("Try again to fetch record {}: Response 400".format(record["local_identifier"]))
+                    self.logger.info("Trying again to fetch record {}: Response 400".format(record["local_identifier"]))
                     time.sleep(1)
                 else:
                     break
