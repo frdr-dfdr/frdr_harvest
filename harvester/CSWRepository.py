@@ -6,6 +6,7 @@ import lxml.etree as ET
 from rdflib import Graph, DCAT
 from dateutil import parser
 import urllib
+import re
 
 class CSWRepository(HarvestRepository):
     """ CSW Repository """
@@ -100,8 +101,21 @@ class CSWRepository(HarvestRepository):
         # Item URL: use DOI if available
         record["item_url"] = self.item_url_pattern.replace("%id%", local_identifier)
         if find_ns(csw_record, "gmd:dataSetURI") is not None:
-            # FIXME not always a url, may need to add https://doi.org/
-            record["item_url"] = get_gco_CharacterString(find_ns(csw_record, "gmd:dataSetURI"))
+            datasetURIString = get_gco_CharacterString(find_ns(csw_record, "gmd:dataSetURI"))
+            if datasetURIString is not None:
+                if datasetURIString.startswith("ttp"):  # fix typo in metadata
+                    datasetURIString = "h" + datasetURIString
+                if datasetURIString.startswith("http"):
+                    record["item_url"] = get_gco_CharacterString(find_ns(csw_record, "gmd:dataSetURI"))
+                    is_confirmed_doi = False
+                    for doi_start in ["https://doi.org/", "http://doi.org/", "https://dx.doi.org/", "http://dx.doi.org/"]:
+                        if datasetURIString.startswith(doi_start):
+                            is_confirmed_doi = True
+                            break
+                    if not is_confirmed_doi:
+                        record["item_url"] = self.item_url_pattern.replace("%id%", local_identifier)
+                elif re.search("^10.\d{4,9}\/[-._;()\/:A-Z0-9]+$", datasetURIString):
+                    record["item_url"] = "https://doi.org/{}".format(datasetURIString)
 
         # Creators, affiliations
         ci_responsible_parties = []
@@ -109,7 +123,8 @@ class CSWRepository(HarvestRepository):
         record["affiliations"] = []
 
         # Get responsible parties from gmd:contact
-        ci_responsible_parties.extend(findall_ns(find_ns(csw_record, "gmd:contact"), "gmd:CI_ResponsibleParty"))
+        for contact in findall_ns(csw_record, "gmd:contact"):
+            ci_responsible_parties.extend(findall_ns(contact, "gmd:CI_ResponsibleParty"))
 
         # Get responsible parties from gmd:identificationInfo / gmd:MD_DataIdentification / gmd:citation / gmd:CI_Citation / gmd:citedResponsibleParty
         for citedResponsibleParty in findall_ns(citation, "gmd:citedResponsibleParty"):
@@ -155,7 +170,6 @@ class CSWRepository(HarvestRepository):
             record["pub_date"] = citation_dates["creation"]
         else:
             self.logger.error("Record {} missing publication, revision, and creation dates")  # TODO investigate if this happens
-
 
         # TODO  keywords - tags, subjects(?)
         record["tags"] = []
