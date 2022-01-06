@@ -33,20 +33,25 @@ class CSWRepository(HarvestRepository):
 
         try:
             g = Graph()
-            g.parse(self.url) # FIXME handle response 400 here too
+            request_success = False
+            request_count = 0
+            while not request_success and request_count < 5:
+                try:
+                    g.parse(self.url)
+                    request_success = True
+                except Graph.HTTPError:
+                    request_count +=1
+                    self.logger.info("Try again to fetch records at {}: Response 400".format(self.url))
+                    time.sleep(1)
+
             item_count = 0
             for s, p, o in g.triples((None, DCAT.dataset, None)):
+                # Get record identifier
                 split_url = "https://hecate.hakai.org/geonetwork/srv/metadata//datasets/"
                 if "https://hecate.hakai.org/geonetwork/srv/metadata/" in o.split(split_url)[-1]:
                     identifier = o.split(split_url)[-1].split("https://hecate.hakai.org/geonetwork/srv/metadata/")[-1]
                 else:
                     identifier = o.split(split_url)[-1]
-                try:
-                    uuid = UUID(identifier)
-                except ValueError:
-                    self.logger.error("Not a UUID: {}".format(identifier))
-                    # FIXME hande this case - find the uuid elsewhere
-                    continue
                 self.db.write_header(identifier, self.item_url_pattern, self.repository_id)
                 item_count = item_count + 1
                 if (item_count % self.update_log_after_numitems == 0):
@@ -80,7 +85,14 @@ class CSWRepository(HarvestRepository):
 
 
         # Item URL: use DOI if available
-        record["item_url"] = self.item_url_pattern.replace("%id%", local_identifier)
+        try:
+            local_uuid = UUID(local_identifier) # Check if identifier is a valid UUID
+            record["item_url"] = self.item_url_pattern.replace("%id%", local_identifier)
+        except ValueError:
+            self.logger.info("Not a UUID: {}".format(local_identifier))
+            if local_identifier.startswith("http"):
+                record["item_url"] = local_identifier
+
         if csw_record.find("gmd:dataSetURI", csw_record.nsmap) is not None:
             record["item_url"] = csw_record.find("gmd:dataSetURI", csw_record.nsmap).find("gco:CharacterString",csw_record.nsmap).text
 
@@ -203,7 +215,8 @@ class CSWRepository(HarvestRepository):
                     request_success = True
                 elif response.status_code == 400:
                     request_count += 1
-                    time.sleep(1) # FIXME not sure if this is the best way to wait
+                    self.logger.info("Try again to fetch record {}: Response 400".format(record["local_identifier"]))
+                    time.sleep(1)
                 else:
                     break
             except Exception as e:
