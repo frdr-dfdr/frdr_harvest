@@ -39,9 +39,9 @@ class CSWRepository(HarvestRepository):
                 try:
                     g.parse(self.url)
                     request_success = True
-                except Graph.HTTPError:
+                except urllib.error.HTTPError as e:
                     request_count +=1
-                    self.logger.info("Try again to fetch records at {}: Response 400".format(self.url))
+                    self.logger.info("Trying again to fetch records at {}: {}".format(self.url, e))
                     time.sleep(1)
 
             item_count = 0
@@ -211,7 +211,7 @@ class CSWRepository(HarvestRepository):
                     request_success = True
                 elif response.status_code == 400:
                     request_count += 1
-                    self.logger.info("Trying again to fetch record {}: Response 400".format(record["local_identifier"]))
+                    self.logger.info("Trying again to fetch record {}: Response {}".format(record["local_identifier"], response.status_code))
                     time.sleep(1)
                 else:
                     break
