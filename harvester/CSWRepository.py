@@ -119,8 +119,8 @@ class CSWRepository(HarvestRepository):
 
         # Creators, affiliations
         ci_responsible_parties = []
-        record["creators"] = []
-        record["affiliations"] = []
+        record["creator"] = []
+        record["affiliation"] = []
 
         # Get responsible parties from gmd:contact
         for contact in findall_ns(csw_record, "gmd:contact"):
@@ -137,15 +137,15 @@ class CSWRepository(HarvestRepository):
         # Extract creators and affiliations from responsible parties
         for ci_responsible_party in ci_responsible_parties:
             if find_ns(ci_responsible_party, "gmd:individualName") is not None:  # Individual creator
-                record["creators"].append(get_gco_CharacterString(find_ns(ci_responsible_party, "gmd:individualName")))
+                record["creator"].append(get_gco_CharacterString(find_ns(ci_responsible_party, "gmd:individualName")))
                 if find_ns(ci_responsible_party, "gmd:organisationName") is not None:  # Individual creator has affiliation
-                    record["affiliations"].append(get_gco_CharacterString(find_ns(ci_responsible_party, "gmd:organisationName")))
+                    record["affiliation"].append(get_gco_CharacterString(find_ns(ci_responsible_party, "gmd:organisationName")))
             elif find_ns(ci_responsible_party, "gmd:organisationName") is not None:  # Organizational creator
-                record["creators"].append(get_gco_CharacterString(find_ns(ci_responsible_party, "gmd:organisationName")))
+                record["creator"].append(get_gco_CharacterString(find_ns(ci_responsible_party, "gmd:organisationName")))
 
         # Remove duplicates from creators and affiliations
-        record["creators"] = list(set(record["creators"]))
-        record["affiliations"] = list(set(record["affiliations"]))
+        record["creator"] = list(set(record["creator"]))
+        record["affiliation"] = list(set(record["affiliation"]))
 
         # Publication date
         citation_dates = {}
@@ -171,11 +171,63 @@ class CSWRepository(HarvestRepository):
         else:
             self.logger.error("Record {} missing publication, revision, and creation dates")  # TODO investigate if this happens
 
-        # TODO  keywords - tags, subjects(?)
+        # Tags
         record["tags"] = []
+        for descriptive_keywords in findall_ns(data_identification, "gmd:descriptiveKeywords"):
+            for keyword in findall_ns(find_ns(descriptive_keywords, "gmd:MD_Keywords"), "gmd:keyword"):
+                keyword_text = get_gco_CharacterString(keyword)
+                if keyword_text is not None:
+                    record["tags"].append(keyword_text.strip())
+
+        # Subjects
         record["subject"] = []
+        for topic_category in findall_ns(data_identification, "gmd:topicCategory"):
+            topic_category_code = find_ns(topic_category, "gmd:MD_TopicCategoryCode")
+            if topic_category_code is not None:
+                record["subject"].append(topic_category_code.text.strip())
+
         # TODO rights
         # TODO access
+        record["rights"] = []
+        record["access"] = "Public"
+
+        access_codes = ["restricted", "otherRestrictions", "unrestricted", "private", "statutory", "confidential", "SBU", "in-confidence"]
+        rights_codes = ["copyright", "patent", "patentPending", "trademark", "license", "intellectualPropertyRights", "licenseUnrestricted", "licenceEndUser", "licenceDistributor"]
+
+        for resource_constraint in findall_ns(data_identification, "gmd:resourceConstraints"):
+            md_constraints = find_ns(resource_constraint, "gmd:MD_Constraints")
+            if md_constraints is not None:
+                useLimitation = find_ns(md_constraints, "gmd:useLimitation")
+                if useLimitation is not None and get_gco_CharacterString(useLimitation) is not None:
+                    record["rights"].append(get_gco_CharacterString(useLimitation))
+
+            md_legal_constraints = find_ns(resource_constraint, "gmd:MD_LegalConstraints")
+            if md_legal_constraints is not None:
+                useLimitation = find_ns(md_legal_constraints, "gmd:useLimitation")
+                if useLimitation is not None and get_gco_CharacterString(useLimitation) is not None:
+                    record["rights"].append(get_gco_CharacterString(useLimitation))
+
+                # Get md_restriction_codes from access and use constraints
+                md_restriction_codes = []
+                access_constraints = findall_ns(md_legal_constraints, "gmd:accessConstraints")
+                for access_constraint in access_constraints:
+                    md_restriction_code = find_ns(access_constraint, "gmd:MD_RestrictionCode").attrib["codeListValue"]
+                    md_restriction_codes.append(md_restriction_code)
+                    # if md_restriction_code in access_codes and md_restriction_code != "unrestricted":
+                    #     record["access"] = md_restriction_code
+                    # if md_restriction_code in rights_codes:
+                    #     record["rights"].append(md_restriction_code)
+                use_constraints = findall_ns(md_legal_constraints, "gmd:useConstraints")
+                for use_constraint in use_constraints:
+                    md_restriction_code = find_ns(use_constraint, "gmd:MD_RestrictionCode").attrib["codeListValue"]
+                    md_restriction_codes.append(md_restriction_code)
+
+                # Add md_restriction_codes to rights and access, depending onc ode
+                for md_restriction_code in md_restriction_codes:
+                    if md_restriction_code in access_codes and md_restriction_code != "unrestricted":
+                        record["access"] = md_restriction_code
+                    if md_restriction_code in rights_codes:
+                        record["rights"].append(md_restriction_code)
 
         # If record is French, swap fields
         language = ""
