@@ -186,8 +186,7 @@ class CSWRepository(HarvestRepository):
             if topic_category_code is not None:
                 record["subject"].append(topic_category_code.text.strip())
 
-        # TODO rights
-        # TODO access
+        # Rights and access
         record["rights"] = []
         record["access"] = "Public"
 
@@ -213,10 +212,6 @@ class CSWRepository(HarvestRepository):
                 for access_constraint in access_constraints:
                     md_restriction_code = find_ns(access_constraint, "gmd:MD_RestrictionCode").attrib["codeListValue"]
                     md_restriction_codes.append(md_restriction_code)
-                    # if md_restriction_code in access_codes and md_restriction_code != "unrestricted":
-                    #     record["access"] = md_restriction_code
-                    # if md_restriction_code in rights_codes:
-                    #     record["rights"].append(md_restriction_code)
                 use_constraints = findall_ns(md_legal_constraints, "gmd:useConstraints")
                 for use_constraint in use_constraints:
                     md_restriction_code = find_ns(use_constraint, "gmd:MD_RestrictionCode").attrib["codeListValue"]
