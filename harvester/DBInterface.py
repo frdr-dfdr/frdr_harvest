@@ -824,7 +824,7 @@ class DBInterface:
             modified_upstream = True
 
         # subjects - en
-        if self.update_related_metadata(record, "subjects", "subjects", {"language": "en"}):
+        if self.update_related_metadata(record, "subjects", "subject", {"language": "en"}):
             modified_upstream = True
 
         # subjects - fr

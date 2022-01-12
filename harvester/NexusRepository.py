@@ -109,10 +109,10 @@ class NexusRepository(HarvestRepository):
             isAbout_list = nexus_record["isAbout"]
             if not isinstance(isAbout_list, list):
                 isAbout_list = [isAbout_list]
-            record["subjects"] = []
+            record["subject"] = []
             for subject in isAbout_list:
                 if ("name" in subject) and subject["name"]:
-                    record["subjects"].append(subject["name"])
+                    record["subject"].append(subject["name"])
 
         # Rights
         if ("licenses" in nexus_record) and nexus_record["licenses"]:
