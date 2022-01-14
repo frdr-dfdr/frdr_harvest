@@ -1,3 +1,21 @@
+CREATE TABLE IF NOT EXISTS geonames (
+geonames_id INTEGER PRIMARY KEY NOT NULL,
+country text,
+province_state text,
+city text,
+northLat NUMERIC,
+southLat NUMERIC,
+eastLon NUMERIC,
+westLon NUMERIC,
+last_modified_timestamp int DEFAULT 0);
+
+ALTER TABLE geoplace
+ADD COLUMN record_uuid TEXT
+CONSTRAINT fk_uuid REFERENCES records(record_uuid)
+ON UPDATE CASCADE ON DELETE CASCADE;
+
+ALTER TABLE geoplace
+ADD COLUMN geonames_id INTEGER
 CONSTRAINT fk_geonames REFERENCES geonames(geonames_id)
 ON UPDATE CASCADE ON DELETE CASCADE;
 
