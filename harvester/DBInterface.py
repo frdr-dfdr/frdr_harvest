@@ -323,7 +323,7 @@ class DBInterface:
         try:
             for tablename in [
                 "records_x_access", "records_x_affiliations", "records_x_crdc", "records_x_creators",
-                "descriptions", "domain_metadata", "geobbox", "geofile", "records_x_geoplace", "geopoint", "geospatial",
+                "descriptions", "domain_metadata", "geobbox", "geofile", "geoplace", "geopoint", "geospatial",
                 "records_x_publishers", "records_x_rights", "records_x_subjects", "records_x_tags" ]:
                 self.delete_rows(tablename, recordidcolumn, record[recordidcolumn])
         except Exception as e:
