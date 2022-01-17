@@ -7,3 +7,4 @@ venv/
 temp/
 conf/repos.json
  
+/exportonly.py
