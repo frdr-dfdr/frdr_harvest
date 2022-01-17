@@ -28,8 +28,8 @@ ADD COLUMN geodisy_review_status INTEGER DEFAULT 0;
 
 UPDATE geoplace set record_uuid = (select record_uuid from records_x_geoplace where records_x_geoplace.geoplace_id = geoplace.geoplace_id limit 1);
 
-DROP INDEX records_x_geoplace_by_record;
-DROP TABLE records_x_geoplace;
+DROP INDEX IF EXISTS records_x_geoplace_by_record;
+DROP TABLE IF EXISTS records_x_geoplace;
 
 ALTER TABLE geobbox
 ADD COLUMN geofile_id INTEGER;

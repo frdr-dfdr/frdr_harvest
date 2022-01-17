@@ -29,7 +29,7 @@ UPDATE geoplace set record_uuid = (select record_uuid from records_x_geoplace wh
 DROP INDEX IF EXISTS records_x_geoplace_by_record;
 DROP INDEX IF EXISTS records_x_geoplace_by_geoplace;
 
-DROP TABLE records_x_geoplace;
+DROP TABLE IF EXISTS records_x_geoplace;
 
 ALTER TABLE geobbox
 ADD COLUMN geofile_id INTEGER;
