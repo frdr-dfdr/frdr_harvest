@@ -1,13 +1,4 @@
 {
     "repos": [
-      {
-          "name": "Canadian Open Neuroscience Portal (CONP)",
-          "type": "nexus",
-          "url": "https://reservoir.global/v1/resources/Public/CONP",
-          "homepage_url": "https://conp.ca/",
-          "thumbnail": "",
-          "repo_registry_uri": "",
-          "enabled": true
-      }
     ]
 }
