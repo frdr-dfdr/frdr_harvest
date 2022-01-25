@@ -62,9 +62,7 @@ class DataStreamRepository(HarvestRepository):
 
         return False
 
-    def format_datastream_to_oai(self, datastream_dcat_json):
-
-        datastream_record = datastream_dcat_json
+    def format_datastream_to_oai(self, datastream_record):
 
         record = {}
 
