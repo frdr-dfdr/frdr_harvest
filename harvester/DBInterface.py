@@ -619,8 +619,8 @@ class DBInterface:
                             value["other"] = ""
                         if "place_name" not in value:
                             value["place_name"] = ""
-                        extras = {"country": value["country"], "province_state": value["province_state"], "city": value["city"], "other": value["other"]}
-                        value = value["place_name"]
+                        extras = {"country": value["country"], "province_state": value["province_state"],
+                                  "city": value["city"], "other": value["other"], "place_name": value["place_name"]}
                     elif val_fieldname == "geopoints":
                         if "lat" in value and "lon" in value:
                             try:
@@ -683,11 +683,11 @@ class DBInterface:
                             extras = {recordidcolumn: record[recordidcolumn], "language": "fr"}
 
                     # get existing value record if it exists
-                    if val_fieldname in ["affiliation", "description", "description_fr", "geoplaces"]:
+                    if val_fieldname in ["affiliation", "description", "description_fr"]:
                         val_rec_id = self.get_single_record_id(val_table, value, **extras)
                     elif val_fieldname in ["tags", "tags_fr", "subject", "subject_fr"]:
                         val_rec_id = self.get_single_record_id(val_table, value, extrawhere)
-                    elif val_fieldname in ["geopoints", "geobboxes", "geofiles"]:
+                    elif val_fieldname in ["geoplaces", "geopoints", "geobboxes", "geofiles"]:
                         val_rec_id = self.get_single_record_id(val_table, record[recordidcolumn], **extras)
                     else: # ["creator", "contributor", "publisher", "rights"]
                         val_rec_id = self.get_single_record_id(val_table, value)
@@ -699,9 +699,9 @@ class DBInterface:
 
                         if val_fieldname in ["creator", "contributor", "publisher"]:
                             val_rec_id = self.insert_related_record(val_table, value)
-                        elif val_fieldname in ["geopoints", "geobboxes", "geofiles"]:
+                        elif val_fieldname in ["geoplaces", "geopoints", "geobboxes", "geofiles"]:
                             val_rec_id = self.insert_related_record(val_table, record[recordidcolumn], **extras)
-                        else: # ["affiliation", "rights", "tags", "tags_fr", "subject", "subject_fr", "description", "description_fr", "geoplaces"]:
+                        else: # ["affiliation", "rights", "tags", "tags_fr", "subject", "subject_fr", "description", "description_fr"]:
                             val_rec_id = self.insert_related_record(val_table, value, **extras)
                         if val_fieldname != "geopoints": # Remove conditional when Geodisy starts processing points
                             modified_upstream = True

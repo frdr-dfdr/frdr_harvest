@@ -61,7 +61,7 @@
   },
   "geoplace": {
     "idcol": "geoplace_id",
-    "valcol": "place_name",
+    "valcol": "record_uuid",
     "extracolumn": "",
     "crosstable": ""
   },
