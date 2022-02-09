@@ -53,11 +53,17 @@
     "extracolumn": "",
     "crosstable": ""
   },
+  "geonames": {
+    "idcol": "geonames_id",
+    "valcol": "country",
+    "extracolumn": "",
+    "crosstable": ""
+  },
   "geoplace": {
     "idcol": "geoplace_id",
-    "valcol": "place_name",
+    "valcol": "record_uuid",
     "extracolumn": "",
-    "crosstable": "records_x_geoplace"
+    "crosstable": ""
   },
   "geopoint": {
     "idcol": "geopoint_id",
@@ -104,12 +110,6 @@
   "records_x_creators": {
     "idcol": "records_x_creators_id",
     "valcol": "creator_id",
-    "extracolumn": "",
-    "crosstable": ""
-  },
-  "records_x_geoplace": {
-    "idcol": "records_x_geoplace_id",
-    "valcol": "geoplace_id",
     "extracolumn": "",
     "crosstable": ""
   },
