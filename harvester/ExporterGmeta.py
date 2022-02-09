@@ -101,8 +101,7 @@ class ExporterGmeta(Exporter.Exporter):
                                                                     "pointLongitude": float(geopoint["lon"])})
 
                 litecur.execute(self.db._prep("""SELECT geoplace.country, geoplace.province_state, geoplace.city, geoplace.other, geoplace.place_name
-                    FROM geoplace JOIN records_x_geoplace on records_x_geoplace.geoplace_id = geoplace.geoplace_id
-                                    WHERE records_x_geoplace.""" + recordidcolumn + """=?"""), (record[recordidcolumn],))
+                    FROM geoplace WHERE geoplace.""" + recordidcolumn + """=?"""), (record[recordidcolumn],))
                 geoplaces = litecur.fetchall()
                 if len(geoplaces) > 0:
                     record["datacite_geoLocationPlace"] = []
