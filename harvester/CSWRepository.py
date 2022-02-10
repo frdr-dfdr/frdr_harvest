@@ -115,16 +115,18 @@ class CSWRepository(HarvestRepository):
                 if datasetURIString.startswith("ttp"):  # fix typo in metadata
                     datasetURIString = "h" + datasetURIString
                 if datasetURIString.startswith("http"):
-                    record["item_url"] = get_gco_CharacterString(find_ns(csw_record, "gmd:dataSetURI"))
+                    record["item_url"] = datasetURIString
                     is_confirmed_doi = False
                     for doi_start in ["https://doi.org/", "http://doi.org/", "https://dx.doi.org/", "http://dx.doi.org/"]:
                         if datasetURIString.startswith(doi_start):
                             is_confirmed_doi = True
+                            record["item_url"] = record["item_url"].replace("http://", "https://")
+                            record["item_url"] = record["item_url"].replace("https://dx.doi.org/", "https://doi.org/")
                             break
                     if not is_confirmed_doi:
                         record["item_url"] = self.item_url_pattern.replace("%id%", local_identifier)
-                elif re.search("^10.\d{4,9}\/[-._;()\/:A-Z0-9]+$", datasetURIString):
-                    record["item_url"] = "https://doi.org/{}".format(datasetURIString)
+                elif re.search("10.\d{4,9}\/[-._;()\/:a-zA-Z0-9]+$", datasetURIString):
+                    record["item_url"] = "https://doi.org/{}".format(re.search("10.\d{4,9}\/[-._;()\/:a-zA-Z0-9]+$", datasetURIString)[0])
 
         # Creators, affiliations
         ci_responsible_parties = []
