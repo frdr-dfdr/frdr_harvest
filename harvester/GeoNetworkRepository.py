@@ -8,19 +8,19 @@ from dateutil import parser
 import urllib
 import re
 
-class CSWRepository(HarvestRepository):
-    """ CSW Repository """
+class GeoNetworkRepository(HarvestRepository):
+    """ GeoNetwork Repository """
 
     def setRepoParams(self, repoParams):
-        self.metadataprefix = "csw"
-        super(CSWRepository, self).setRepoParams(repoParams)
+        self.metadataprefix = "geonetwork"
+        super(GeoNetworkRepository, self).setRepoParams(repoParams)
         self.domain_metadata = []
         self.headers = {'accept': 'application/rdf+xml'}
 
     def _crawl(self):
         kwargs = {
             "repo_id": self.repository_id, "repo_url": self.url, "repo_set": self.set, "repo_name": self.name,
-            "repo_type": "csw",
+            "repo_type": "geonetwork",
             "enabled": self.enabled, "repo_thumbnail": self.thumbnail, "item_url_pattern": self.item_url_pattern,
             "abort_after_numerrors": self.abort_after_numerrors,
             "max_records_updated_per_run": self.max_records_updated_per_run,
@@ -59,26 +59,26 @@ class CSWRepository(HarvestRepository):
             return True
 
         except Exception as e:
-            self.logger.error("Updating CSW Repository failed: {} {}".format(type(e).__name__, e))
+            self.logger.error("Updating GeoNetwork Repository failed: {} {}".format(type(e).__name__, e))
             self.error_count = self.error_count + 1
             if self.error_count < self.abort_after_numerrors:
                 return True
         return False
 
-    def format_csw_to_oai(self, csw_record, local_identifier):
+    def format_geonetwork_to_oai(self, geonetwork_record, local_identifier):
         # Find one child element using a namespace
         def find_ns(parent, tag):
             if parent is not None:
-                if len(parent.findall(tag, csw_record.nsmap)) > 1:
+                if len(parent.findall(tag, geonetwork_record.nsmap)) > 1:
                     self.logger.info("find_ns() called on element with more than one child: {}, {}".format(parent.tag, tag))
-                return parent.find(tag, csw_record.nsmap)
+                return parent.find(tag, geonetwork_record.nsmap)
             else:
                 return None
 
         # Find all child element using a namespace
         def findall_ns(parent, tag):
             if parent is not None:
-                return parent.findall(tag, csw_record.nsmap)
+                return parent.findall(tag, geonetwork_record.nsmap)
             else:
                 return None
 
@@ -97,7 +97,7 @@ class CSWRepository(HarvestRepository):
         # https://docs.meridian.cs.dal.ca/metadata/Metadata.html is useful as a rough guide to ISO 19115, although they made changes
 
         # Shortcuts to frequently used nodes:
-        data_identification = find_ns(find_ns(csw_record, "gmd:identificationInfo"), "gmd:MD_DataIdentification")
+        data_identification = find_ns(find_ns(geonetwork_record, "gmd:identificationInfo"), "gmd:MD_DataIdentification")
         citation = find_ns(find_ns(data_identification, "gmd:citation"), "gmd:CI_Citation")
 
         # Title and description
@@ -109,8 +109,8 @@ class CSWRepository(HarvestRepository):
 
         # Item URL: use DOI if available
         record["item_url"] = self.item_url_pattern.replace("%id%", local_identifier)
-        if find_ns(csw_record, "gmd:dataSetURI") is not None:
-            datasetURIString = get_gco_CharacterString(find_ns(csw_record, "gmd:dataSetURI"))
+        if find_ns(geonetwork_record, "gmd:dataSetURI") is not None:
+            datasetURIString = get_gco_CharacterString(find_ns(geonetwork_record, "gmd:dataSetURI"))
             if datasetURIString is not None:
                 if datasetURIString.startswith("ttp"):  # fix typo in metadata
                     datasetURIString = "h" + datasetURIString
@@ -134,7 +134,7 @@ class CSWRepository(HarvestRepository):
         record["affiliation"] = []
 
         # Get responsible parties from gmd:contact
-        for contact in findall_ns(csw_record, "gmd:contact"):
+        for contact in findall_ns(geonetwork_record, "gmd:contact"):
             ci_responsible_parties.extend(findall_ns(contact, "gmd:CI_ResponsibleParty"))
 
         # Get responsible parties from gmd:identificationInfo / gmd:MD_DataIdentification / gmd:citation / gmd:CI_Citation / gmd:citedResponsibleParty
@@ -238,10 +238,10 @@ class CSWRepository(HarvestRepository):
 
         # If record is French, swap fields
         language = ""
-        if find_ns(find_ns(csw_record, "gmd:language"), "gmd:LanguageCode") is not None:
-            language = find_ns(find_ns(csw_record, "gmd:language"), "gmd:LanguageCode").attrib["codeListValue"]
-        elif get_gco_CharacterString(find_ns(csw_record, "gmd:language")) is not None:
-            language = get_gco_CharacterString(find_ns(csw_record, "gmd:language"))
+        if find_ns(find_ns(geonetwork_record, "gmd:language"), "gmd:LanguageCode") is not None:
+            language = find_ns(find_ns(geonetwork_record, "gmd:language"), "gmd:LanguageCode").attrib["codeListValue"]
+        elif get_gco_CharacterString(find_ns(geonetwork_record, "gmd:language")) is not None:
+            language = get_gco_CharacterString(find_ns(geonetwork_record, "gmd:language"))
 
         if language == "fre":
             record["title_fr"] = record["title"]
@@ -303,7 +303,7 @@ class CSWRepository(HarvestRepository):
                 self.logger.error("Unable to parse record {}: {}, {}".format(record['local_identifier'], type(e).__name__, e))
                 self.db.touch_record(record) # Record has XML error, try again later
                 return True
-            oai_record = self.format_csw_to_oai(xml_record, record["local_identifier"])
+            oai_record = self.format_geonetwork_to_oai(xml_record, record["local_identifier"])
 
             if oai_record:
                 try:

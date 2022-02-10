@@ -2,7 +2,7 @@
     "repos": [
       {
           "name": "Hakai Institute",
-          "type": "csw",
+          "type": "geonetwork",
           "url": "https://hecate.hakai.org/geonetwork/srv/api/records/",
           "homepage_url": "https://hecate.hakai.org/",
           "thumbnail": "https://{{ web_hostname }}/discover/img/sources/hakai_80x80.png",
