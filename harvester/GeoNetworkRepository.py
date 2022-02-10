@@ -90,12 +90,6 @@ class GeoNetworkRepository(HarvestRepository):
 
         record = {}
 
-        # todo Examples:
-        # "https://hecate.hakai.org/geonetwork/srv/api/records/23bc8c35-2e4e-4382-9296-a52d5ea49889/formatters/xml"
-        # "https://hecate.hakai.org/geonetwork/srv/api/records/e2d3d616-9ee2-451f-8584-14801b4c6fd0/formatters/xml"
-        # todo Documentation:
-        # https://docs.meridian.cs.dal.ca/metadata/Metadata.html is useful as a rough guide to ISO 19115, although they made changes
-
         # Shortcuts to frequently used nodes:
         data_identification = find_ns(find_ns(geonetwork_record, "gmd:identificationInfo"), "gmd:MD_DataIdentification")
         citation = find_ns(find_ns(data_identification, "gmd:citation"), "gmd:CI_Citation")
@@ -181,7 +175,7 @@ class GeoNetworkRepository(HarvestRepository):
         elif "creation" in citation_dates.keys():
             record["pub_date"] = citation_dates["creation"]
         else:
-            self.logger.error("Record {} missing publication, revision, and creation dates")  # TODO investigate if this happens
+            self.logger.error("Record {} missing publication, revision, and creation dates")
 
         # Tags
         record["tags"] = []
