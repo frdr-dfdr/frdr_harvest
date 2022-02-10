@@ -241,22 +241,25 @@ class CSWRepository(HarvestRepository):
             record["description_fr"] = record["description"]
             record["description"] = ""
 
-        # TODO update to use iso 19139
-        # if csw_record.bbox:
-        #     # Workaround to address issue in oswlib related to EPSG:4326 CRS code that flips coordinates
-        #     if float(csw_record.bbox.minx) > float(csw_record.bbox.maxx):
-        #         # longitude values (minx and maxx) are switched by oswlib; switch them back
-        #         record["geobboxes"] = [{"southLat": csw_record.bbox.miny, "westLon": csw_record.bbox.maxx,
-        #                                 "northLat": csw_record.bbox.maxy, "eastLon": csw_record.bbox.minx}]
-        #     elif float(csw_record.bbox.miny) > float(csw_record.bbox.maxy):
-        #         # sometimes x and y values are switched, so the lats are longs and vice versa
-        #         # we can look for the same discrepancy that happens in the longs, except it's in the y values now
-        #         record["geobboxes"] = [{"southLat": csw_record.bbox.minx, "westLon": csw_record.bbox.maxy,
-        #                                "northLat": csw_record.bbox.maxx, "eastLon": csw_record.bbox.miny}]
-        #     else:
-        #         # default if nothing is wrong (this code isn't executed currently)
-        #         record["geobboxes"] = [{"southLat": csw_record.bbox.miny, "westLon": csw_record.bbox.minx,
-        #                                 "northLat": csw_record.bbox.maxy, "eastLon": csw_record.bbox.maxx}]
+
+        # Geospatial
+        extents = findall_ns(data_identification, "gmd:extent")
+        if extents is not None:
+            record["geobboxes"] = []
+            record["geoplaces"] = []
+            for extent in extents:
+                ex_extent = find_ns(extent, "gmd:EX_Extent")
+                geographicElements = findall_ns(ex_extent, "gmd:geographicElement")
+                # Geographic extent (ignore temporal)
+                if geographicElements is not None:
+                    record["geoplaces"].append({"place_name": get_gco_CharacterString(find_ns(ex_extent, "gmd:description"))})
+                    # Geospatial - bounding boxes only, not polygons
+                    for geographicElement in geographicElements:
+                        geographicBoundingBox = find_ns(geographicElement, "gmd:EX_GeographicBoundingBox")
+                        record["geobboxes"].append({"westLon": find_ns(find_ns(geographicBoundingBox,"gmd:westBoundLongitude"), "gco:Decimal").text,
+                                                    "eastLon": find_ns(find_ns(geographicBoundingBox, "gmd:eastBoundLongitude"),"gco:Decimal").text,
+                                                    "northLat": find_ns(find_ns(geographicBoundingBox, "gmd:northBoundLatitude"), "gco:Decimal").text,
+                                                    "southLat": find_ns(find_ns(geographicBoundingBox, "gmd:southBoundLatitude"), "gco:Decimal").text})
 
         return record
 
