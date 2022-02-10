@@ -154,6 +154,7 @@ class CSWRepository(HarvestRepository):
 
         # Remove duplicates from creators and affiliations
         record["creator"] = list(set(record["creator"]))
+        record["creator"] = [x for x in record["creator"] if x is not None and "@" not in x]
         record["affiliation"] = list(set(record["affiliation"]))
 
         # Publication date
