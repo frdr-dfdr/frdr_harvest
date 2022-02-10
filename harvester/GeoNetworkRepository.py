@@ -43,7 +43,7 @@ class GeoNetworkRepository(HarvestRepository):
                 except urllib.error.HTTPError as e:
                     request_count +=1
                     self.logger.info("Trying again to fetch records at {}: {}".format(self.url, e))
-                    time.sleep(1)
+                    time.sleep(3)
 
             item_count = 0
             for s, p, o in g.triples((None, None, DCAT.CatalogRecord)):
@@ -282,7 +282,7 @@ class GeoNetworkRepository(HarvestRepository):
                 elif response.status_code == 400:
                     request_count += 1
                     self.logger.info("Trying again to fetch record {}: Response {}".format(record["local_identifier"], response.status_code))
-                    time.sleep(1)
+                    time.sleep(3)
                 else:
                     break
             except Exception as e:
