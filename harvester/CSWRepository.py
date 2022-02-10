@@ -66,14 +66,23 @@ class CSWRepository(HarvestRepository):
         return False
 
     def format_csw_to_oai(self, csw_record, local_identifier):
+        # Find one child element using a namespace
         def find_ns(parent, tag):
-            if len(parent.findall(tag, csw_record.nsmap)) > 1:
-                self.logger.info("find_ns() called on element with more than one child: {}, {}".format(parent.tag, tag))
-            return parent.find(tag, csw_record.nsmap)
+            if parent is not None:
+                if len(parent.findall(tag, csw_record.nsmap)) > 1:
+                    self.logger.info("find_ns() called on element with more than one child: {}, {}".format(parent.tag, tag))
+                return parent.find(tag, csw_record.nsmap)
+            else:
+                return None
 
+        # Find all child element using a namespace
         def findall_ns(parent, tag):
-            return parent.findall(tag, csw_record.nsmap)
+            if parent is not None:
+                return parent.findall(tag, csw_record.nsmap)
+            else:
+                return None
 
+        # Get the gco:CharacterString for a given element
         def get_gco_CharacterString(element):
             if find_ns(element, "gco:CharacterString") is not None:
                 return find_ns(element, "gco:CharacterString").text
