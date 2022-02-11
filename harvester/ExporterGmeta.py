@@ -78,6 +78,7 @@ class ExporterGmeta(Exporter.Exporter):
 
             geojson_fields = {}
             geo_feature_count = 0
+            GEO_FEATURE_PREFIX = "geofeature"
             con = self.db.getConnection()
             with con:
                 cur = self.db.getDictCursor()
@@ -89,13 +90,13 @@ class ExporterGmeta(Exporter.Exporter):
                     if len(geobboxes) == 1:
                         jsonfeature = self.bboxToFeature(geobboxes[0])
                         geo_feature_count = geo_feature_count + 1
-                        feature_name = "feature" + str(geo_feature_count)
+                        feature_name = GEO_FEATURE_PREFIX + str(geo_feature_count)
                         record[feature_name] = jsonfeature
                         geojson_fields[feature_name] = "geo_shape"
                     else:
                         jsonfeature = self.bboxToFeatureMulti(geobboxes)
                         geo_feature_count = geo_feature_count + 1
-                        feature_name = "feature" + str(geo_feature_count)
+                        feature_name = GEO_FEATURE_PREFIX + str(geo_feature_count)
                         record[feature_name] = jsonfeature
                         geojson_fields[feature_name] = "geo_shape"
 
@@ -104,7 +105,7 @@ class ExporterGmeta(Exporter.Exporter):
                 for geopoint in geopoints:
                     jsonfeature = self.pointToFeature(geopoint)
                     geo_feature_count = geo_feature_count + 1
-                    feature_name = "feature" + str(geo_feature_count)
+                    feature_name = GEO_FEATURE_PREFIX + str(geo_feature_count)
                     record[feature_name] = jsonfeature
                     geojson_fields[feature_name + ".coordinates"] = "geo_point"
 
@@ -112,12 +113,12 @@ class ExporterGmeta(Exporter.Exporter):
                     FROM geoplace WHERE geoplace.""" + recordidcolumn + """=?"""), (record[recordidcolumn],))
                 geoplaces = cur.fetchall()
                 if len(geoplaces) > 0:
-                    record["datacite_geoLocationPlace"] = []
+                    record["geoLocationPlace"] = []
                     for geoplace in geoplaces:
                         if geoplace["place_name"]:
-                            record["datacite_geoLocationPlace"].append({"place_name": geoplace["place_name"]})
+                            record["geoLocationPlace"].append({"place_name": geoplace["place_name"]})
                         elif geoplace["country"] or geoplace["province_state"] or geoplace["city"] or geoplace["other"]:
-                            record["datacite_geoLocationPlace"].append({"country": geoplace["country"],
+                            record["geoLocationPlace"].append({"country": geoplace["country"],
                                                                         "province_state": geoplace["province_state"],
                                                                         "city": geoplace["city"],
                                                                         "additional": geoplace["other"]})
@@ -311,6 +312,7 @@ class ExporterGmeta(Exporter.Exporter):
 
     def pointToFeature(self, geopoint):
         feature = {
+            "type": "Point",
             "coordinates": [
                 float(geopoint["lon"]),
                 float(geopoint["lat"])
