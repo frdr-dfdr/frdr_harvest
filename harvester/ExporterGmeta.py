@@ -76,33 +76,41 @@ class ExporterGmeta(Exporter.Exporter):
                 (record["title_fr"] is None or len(record["title_fr"]) == 0)):
                 continue
 
+            geojson_fields = {}
+            geo_feature_count = 0
             con = self.db.getConnection()
             with con:
-                litecur = self.db.getDictCursor()
+                cur = self.db.getDictCursor()
 
-                litecur.execute(self.db._prep("""SELECT geobbox.westLon, geobbox.eastLon, geobbox.northLat, geobbox.southLat
+                cur.execute(self.db._prep("""SELECT geobbox.westLon, geobbox.eastLon, geobbox.northLat, geobbox.southLat
                                     FROM geobbox WHERE geobbox.""" + recordidcolumn + """=?"""), (record[recordidcolumn],))
-                geobboxes = litecur.fetchall()
+                geobboxes = cur.fetchall()
                 if len(geobboxes) > 0:
-                    record["datacite_geoLocationBox"] = []
-                    for geobbox in geobboxes:
-                        record["datacite_geoLocationBox"].append({"westBoundLongitude": float(geobbox["westlon"]),
-                                                                  "eastBoundLongitude": float(geobbox["eastlon"]),
-                                                                  "northBoundLatitude": float(geobbox["northlat"]),
-                                                                  "southBoundLatitude": float(geobbox["southlat"])})
+                    if len(geobboxes) == 1:
+                        jsonfeature = self.bboxToFeature(geobboxes[0])
+                        geo_feature_count = geo_feature_count + 1
+                        feature_name = "feature" + str(geo_feature_count)
+                        record[feature_name] = jsonfeature
+                        geojson_fields[feature_name] = "geo_shape"
+                    else:
+                        jsonfeature = self.bboxToFeatureMulti(geobboxes)
+                        geo_feature_count = geo_feature_count + 1
+                        feature_name = "feature" + str(geo_feature_count)
+                        record[feature_name] = jsonfeature
+                        geojson_fields[feature_name] = "geo_shape"
 
+                cur.execute(self.db._prep("SELECT geopoint.lat, geopoint.lon FROM geopoint WHERE geopoint." + recordidcolumn + "=?"), (record[recordidcolumn],))
+                geopoints = cur.fetchall()
+                for geopoint in geopoints:
+                    jsonfeature = self.pointToFeature(geopoint)
+                    geo_feature_count = geo_feature_count + 1
+                    feature_name = "feature" + str(geo_feature_count)
+                    record[feature_name] = jsonfeature
+                    geojson_fields[feature_name + ".coordinates"] = "geo_point"
 
-                litecur.execute(self.db._prep("SELECT geopoint.lat, geopoint.lon FROM geopoint WHERE geopoint." + recordidcolumn + "=?"), (record[recordidcolumn],))
-                geopoints = litecur.fetchall()
-                if len(geopoints) > 0:
-                    record["datacite_geoLocationPoint"] = []
-                    for geopoint in geopoints:
-                        record["datacite_geoLocationPoint"].append({"pointLatitude": float(geopoint["lat"]),
-                                                                    "pointLongitude": float(geopoint["lon"])})
-
-                litecur.execute(self.db._prep("""SELECT geoplace.country, geoplace.province_state, geoplace.city, geoplace.other, geoplace.place_name
+                cur.execute(self.db._prep("""SELECT geoplace.country, geoplace.province_state, geoplace.city, geoplace.other, geoplace.place_name
                     FROM geoplace WHERE geoplace.""" + recordidcolumn + """=?"""), (record[recordidcolumn],))
-                geoplaces = litecur.fetchall()
+                geoplaces = cur.fetchall()
                 if len(geoplaces) > 0:
                     record["datacite_geoLocationPlace"] = []
                     for geoplace in geoplaces:
@@ -115,12 +123,12 @@ class ExporterGmeta(Exporter.Exporter):
                                                                         "additional": geoplace["other"]})
 
                 # CRDC (FRDR records only)
-                litecur.execute(self.db._prep("""SELECT crdc.crdc_code, crdc.crdc_group_en, crdc.crdc_group_fr, 
+                cur.execute(self.db._prep("""SELECT crdc.crdc_code, crdc.crdc_group_en, crdc.crdc_group_fr, 
                                                     crdc.crdc_class_en, crdc.crdc_class_fr, crdc.crdc_field_en, crdc.crdc_field_fr
                                                     FROM crdc JOIN records_x_crdc on records_x_crdc.crdc_id = crdc.crdc_id
                                                     WHERE records_x_crdc.""" + recordidcolumn + """=?"""),
                                 (record[recordidcolumn],))
-                crdc_entries = litecur.fetchall()
+                crdc_entries = cur.fetchall()
                 if len(crdc_entries) > 0:
                     record["crdc"] = []
                     for crdc_entry in crdc_entries:
@@ -130,75 +138,75 @@ class ExporterGmeta(Exporter.Exporter):
                                                "crdc_field_en": crdc_entry["crdc_field_en"], "crdc_field_fr": crdc_entry["crdc_field_fr"] })
 
             with con:
-                litecur = self.db.getLambdaCursor()
+                cur = self.db.getLambdaCursor()
 
                 # attach the other values to the dict
-                litecur.execute(self.db._prep("""SELECT creators.creator FROM creators JOIN records_x_creators on records_x_creators.creator_id = creators.creator_id
+                cur.execute(self.db._prep("""SELECT creators.creator FROM creators JOIN records_x_creators on records_x_creators.creator_id = creators.creator_id
                     WHERE records_x_creators.""" + recordidcolumn + """=? AND records_x_creators.is_contributor=0 order by records_x_creators_id asc"""),
                                 (record[recordidcolumn],))
-                record["dc_contributor_author"] = self._rows_to_list(litecur)
+                record["dc_contributor_author"] = self._rows_to_list(cur)
 
-                litecur.execute(self.db._prep("""SELECT affiliations.affiliation FROM affiliations JOIN records_x_affiliations on records_x_affiliations.affiliation_id = affiliations.affiliation_id
+                cur.execute(self.db._prep("""SELECT affiliations.affiliation FROM affiliations JOIN records_x_affiliations on records_x_affiliations.affiliation_id = affiliations.affiliation_id
                     WHERE records_x_affiliations.""" + recordidcolumn + """=?"""), (record[recordidcolumn],))
-                record["datacite_creatorAffiliation"] = self._rows_to_list(litecur)
+                record["datacite_creatorAffiliation"] = self._rows_to_list(cur)
 
-                litecur.execute(self.db._prep("""SELECT creators.creator FROM creators JOIN records_x_creators on records_x_creators.creator_id = creators.creator_id
+                cur.execute(self.db._prep("""SELECT creators.creator FROM creators JOIN records_x_creators on records_x_creators.creator_id = creators.creator_id
                     WHERE records_x_creators.""" + recordidcolumn + """=? AND records_x_creators.is_contributor=1 order by records_x_creators_id asc"""),
                                 (record[recordidcolumn],))
-                record["dc_contributor"] = self._rows_to_list(litecur)
+                record["dc_contributor"] = self._rows_to_list(cur)
 
-                litecur.execute(self.db._prep("""SELECT subjects.subject FROM subjects JOIN records_x_subjects on records_x_subjects.subject_id = subjects.subject_id
+                cur.execute(self.db._prep("""SELECT subjects.subject FROM subjects JOIN records_x_subjects on records_x_subjects.subject_id = subjects.subject_id
                     WHERE records_x_subjects.""" + recordidcolumn + """=? and subjects.language='en'"""), (record[recordidcolumn],))
-                record["frdr_subject_en"] = self._rows_to_list(litecur)
+                record["frdr_subject_en"] = self._rows_to_list(cur)
 
 
-                litecur.execute(self.db._prep("""SELECT subjects.subject FROM subjects JOIN records_x_subjects on records_x_subjects.subject_id = subjects.subject_id
+                cur.execute(self.db._prep("""SELECT subjects.subject FROM subjects JOIN records_x_subjects on records_x_subjects.subject_id = subjects.subject_id
                     WHERE records_x_subjects.""" + recordidcolumn + """=? and subjects.language='fr'"""), (record[recordidcolumn],))
-                record["frdr_subject_fr"] = self._rows_to_list(litecur)
+                record["frdr_subject_fr"] = self._rows_to_list(cur)
 
-                litecur.execute(self.db._prep("""SELECT publishers.publisher FROM publishers JOIN records_x_publishers on records_x_publishers.publisher_id = publishers.publisher_id
+                cur.execute(self.db._prep("""SELECT publishers.publisher FROM publishers JOIN records_x_publishers on records_x_publishers.publisher_id = publishers.publisher_id
                     WHERE records_x_publishers.""" + recordidcolumn + """=?"""), (record[recordidcolumn],))
-                record["dc_publisher"] = self._rows_to_list(litecur)
+                record["dc_publisher"] = self._rows_to_list(cur)
 
-                litecur.execute(self.db._prep("""SELECT rights.rights FROM rights JOIN records_x_rights on records_x_rights.rights_id = rights.rights_id
+                cur.execute(self.db._prep("""SELECT rights.rights FROM rights JOIN records_x_rights on records_x_rights.rights_id = rights.rights_id
                                                        WHERE records_x_rights.""" + recordidcolumn + """=?"""), (record[recordidcolumn],))
-                record["dc_rights"] = self._rows_to_list(litecur)
+                record["dc_rights"] = self._rows_to_list(cur)
 
-                litecur.execute(
+                cur.execute(
                     self.db._prep("SELECT description FROM descriptions WHERE " + recordidcolumn + "=? and language='en' "),
                     (record[recordidcolumn],))
-                record["dc_description_en"] = self._rows_to_list(litecur)
+                record["dc_description_en"] = self._rows_to_list(cur)
 
-                litecur.execute(
+                cur.execute(
                     self.db._prep("SELECT description FROM descriptions WHERE " + recordidcolumn + "=? and language='fr' "),
                     (record[recordidcolumn],))
-                record["dc_description_fr"] = self._rows_to_list(litecur)
+                record["dc_description_fr"] = self._rows_to_list(cur)
 
-                litecur.execute(self.db._prep("""SELECT tags.tag FROM tags JOIN records_x_tags on records_x_tags.tag_id = tags.tag_id
+                cur.execute(self.db._prep("""SELECT tags.tag FROM tags JOIN records_x_tags on records_x_tags.tag_id = tags.tag_id
                     WHERE records_x_tags.""" + recordidcolumn + """=? and tags.language = 'en' """), (record[recordidcolumn],))
-                record["frdr_keyword_en"] = self._rows_to_list(litecur)
+                record["frdr_keyword_en"] = self._rows_to_list(cur)
 
-                litecur.execute(self.db._prep("""SELECT tags.tag FROM tags JOIN records_x_tags on records_x_tags.tag_id = tags.tag_id
+                cur.execute(self.db._prep("""SELECT tags.tag FROM tags JOIN records_x_tags on records_x_tags.tag_id = tags.tag_id
                     WHERE records_x_tags.""" + recordidcolumn + """=? and tags.language = 'fr' """), (record[recordidcolumn],))
-                record["frdr_keyword_fr"] = self._rows_to_list(litecur)
+                record["frdr_keyword_fr"] = self._rows_to_list(cur)
 
-                litecur.execute(self.db._prep("""SELECT access.access FROM access JOIN records_x_access on records_x_access.access_id = access.access_id
+                cur.execute(self.db._prep("""SELECT access.access FROM access JOIN records_x_access on records_x_access.access_id = access.access_id
                     WHERE records_x_access.""" + recordidcolumn + """=?"""), (record[recordidcolumn],))
-                record["frdr_access"] = self._rows_to_list(litecur)
+                record["frdr_access"] = self._rows_to_list(cur)
 
             with con:
                 if self.db.getType() == "sqlite":
                     from sqlite3 import Row
                     con.row_factory = Row
-                    litecur = con.cursor()
+                    cur = con.cursor()
                 elif self.db.getType() == "postgres":
-                    litecur = con.cursor(cursor_factory=DictCursor)
+                    cur = con.cursor(cursor_factory=DictCursor)
 
-                litecur.execute(self.db._prep(
+                cur.execute(self.db._prep(
                     """SELECT ds.namespace, dm.field_name, dm.field_value 
                     FROM domain_metadata dm, domain_schemas ds WHERE dm.schema_id=ds.schema_id and dm.""" + recordidcolumn + """=?"""),
                                 (record[recordidcolumn],))
-                for row2 in litecur:
+                for row2 in cur:
                     domain_namespace = str(row2["namespace"])
                     field_name = str(row2["field_name"])
                     field_value = str(row2["field_value"])
@@ -255,6 +263,8 @@ class ExporterGmeta(Exporter.Exporter):
             gmeta_data = {"@datatype": "GMetaEntry", "@version": "2016-11-09",
                           "subject": gmeta_subject, "visible_to": ["public"], "mimetype": "application/json",
                           "content": record}
+            if geo_feature_count > 0:
+                gmeta_data["field_mapping"] = geojson_fields
             self.output_buffer.append(gmeta_data)
 
             self.buffer_size = self.buffer_size + len(json.dumps(gmeta_data))
@@ -268,6 +278,43 @@ class ExporterGmeta(Exporter.Exporter):
         self.logger.info("Export complete: {} items in {} files".format(records_assembled, self.batch_number))
         return deleted
 
+    def bboxToFeature(self, geobbox):
+        feature = {
+            "type": "Polygon",
+            "coordinates": [
+                [geobbox["westlon"], geobbox["southlat"]],
+                [geobbox["westlon"], geobbox["northlat"]],
+                [geobbox["eastlon"], geobbox["northlat"]],
+                [geobbox["eastlon"], geobbox["southlat"]],
+                [geobbox["westlon"], geobbox["southlat"]]
+            ]
+        }
+        return feature
+
+    def bboxToFeatureMulti(self, geobboxes):
+        print("Found {} boxes".format(len(geobboxes)))
+        feature = {
+            "type": "MultiPolygon",
+            "coordinates": []
+        }
+        for geobbox in geobboxes:
+            feature["coordinates"].append(
+                [geobbox["westlon"], geobbox["southlat"]],
+                [geobbox["westlon"], geobbox["northlat"]],
+                [geobbox["eastlon"], geobbox["northlat"]],
+                [geobbox["eastlon"], geobbox["southlat"]],
+                [geobbox["westlon"], geobbox["southlat"]]
+            )
+        return feature
+
+    def pointToFeature(self, geopoint):
+        feature = {
+            "coordinates": [
+                geopoint["lon"],
+                geopoint["lat"]
+            ]
+        }
+        return feature
 
     def change_keys(self, obj, dropkeys, renamekeys):
         """ Recursively goes through the object and replaces keys """
