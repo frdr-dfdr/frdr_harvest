@@ -282,36 +282,35 @@ class ExporterGmeta(Exporter.Exporter):
         feature = {
             "type": "Polygon",
             "coordinates": [
-                [geobbox["westlon"], geobbox["southlat"]],
-                [geobbox["westlon"], geobbox["northlat"]],
-                [geobbox["eastlon"], geobbox["northlat"]],
-                [geobbox["eastlon"], geobbox["southlat"]],
-                [geobbox["westlon"], geobbox["southlat"]]
+                [float(geobbox["westlon"]), float(geobbox["southlat"])],
+                [float(geobbox["westlon"]), float(geobbox["northlat"])],
+                [float(geobbox["eastlon"]), float(geobbox["northlat"])],
+                [float(geobbox["eastlon"]), float(geobbox["southlat"])],
+                [float(geobbox["westlon"]), float(geobbox["southlat"])]
             ]
         }
         return feature
 
     def bboxToFeatureMulti(self, geobboxes):
-        print("Found {} boxes".format(len(geobboxes)))
         feature = {
             "type": "MultiPolygon",
             "coordinates": []
         }
         for geobbox in geobboxes:
             feature["coordinates"].append(
-                [geobbox["westlon"], geobbox["southlat"]],
-                [geobbox["westlon"], geobbox["northlat"]],
-                [geobbox["eastlon"], geobbox["northlat"]],
-                [geobbox["eastlon"], geobbox["southlat"]],
-                [geobbox["westlon"], geobbox["southlat"]]
+                [float(geobbox["westlon"]), float(geobbox["southlat"])],
+                [float(geobbox["westlon"]), float(geobbox["northlat"])],
+                [float(geobbox["eastlon"]), float(geobbox["northlat"])],
+                [float(geobbox["eastlon"]), float(geobbox["southlat"])],
+                [float(geobbox["westlon"]), float(geobbox["southlat"])]
             )
         return feature
 
     def pointToFeature(self, geopoint):
         feature = {
             "coordinates": [
-                geopoint["lon"],
-                geopoint["lat"]
+                float(geopoint["lon"]),
+                float(geopoint["lat"])
             ]
         }
         return feature
