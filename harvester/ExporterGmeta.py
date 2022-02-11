@@ -297,14 +297,16 @@ class ExporterGmeta(Exporter.Exporter):
             "coordinates": []
         }
         for geobbox in geobboxes:
-            coordarray = [
+            ring1 = [
                 [float(geobbox["westlon"]), float(geobbox["southlat"])],
                 [float(geobbox["westlon"]), float(geobbox["northlat"])],
                 [float(geobbox["eastlon"]), float(geobbox["northlat"])],
                 [float(geobbox["eastlon"]), float(geobbox["southlat"])],
                 [float(geobbox["westlon"]), float(geobbox["southlat"])]
             ]
-            feature["coordinates"].append(coordarray)
+            poly = []
+            poly.append(ring1)
+            feature["coordinates"].append(poly)
         return feature
 
     def pointToFeature(self, geopoint):
