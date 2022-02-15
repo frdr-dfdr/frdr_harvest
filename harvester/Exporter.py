@@ -56,10 +56,21 @@ class Exporter(object):
         """ Writes the output buffer out to a file """
         self.logger.debug("Writing batch {} to output file".format(self.batch_number))
         if self.export_format == "gmeta":
-            output = json.dumps({"@datatype": "GIngest", "@version": "2016-11-09",
-                                 "ingest_type": "GMetaList",
-                                 "ingest_data": {"@datatype": "GMetaList", "@version": "2016-11-09",
-                                                 "gmeta": self.output_buffer}})
+            gmeta = {
+                "@datatype": "GIngest", 
+                "@version": "2016-11-09",
+                "ingest_type": "GMetaList",
+                "ingest_data": {
+                    "@datatype": "GMetaList",
+                    "@version": "2016-11-09",
+                    "gmeta": self.output_buffer
+                },
+                "field_mapping": {
+                    "geoLocationPoint": "geo_point",
+                    "geoLocationPolygon": "geo_shape",
+                }
+            }
+            output = json.dumps(gmeta)
         elif self.export_format == "dataverse":
             #print(self.output_buffer)
             output = json.dumps({"records": self.output_buffer, "finished": finished})

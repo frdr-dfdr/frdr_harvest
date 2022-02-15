@@ -76,7 +76,6 @@ class ExporterGmeta(Exporter.Exporter):
                 (record["title_fr"] is None or len(record["title_fr"]) == 0)):
                 continue
 
-            geojson_fields = {}
             geo_feature_count = 0
             GEO_FEATURE_PREFIX = "geofeature"
             con = self.db.getConnection()
@@ -86,28 +85,17 @@ class ExporterGmeta(Exporter.Exporter):
                 cur.execute(self.db._prep("""SELECT geobbox.westLon, geobbox.eastLon, geobbox.northLat, geobbox.southLat
                                     FROM geobbox WHERE geobbox.""" + recordidcolumn + """=?"""), (record[recordidcolumn],))
                 geobboxes = cur.fetchall()
-                if len(geobboxes) > 0:
-                    if len(geobboxes) == 1:
-                        jsonfeature = self.bboxToFeature(geobboxes[0])
-                        geo_feature_count = geo_feature_count + 1
-                        feature_name = GEO_FEATURE_PREFIX + str(geo_feature_count)
-                        record[feature_name] = jsonfeature
-                        geojson_fields[feature_name] = "geo_shape"
-                    else:
-                        jsonfeature = self.bboxToFeatureMulti(geobboxes)
-                        geo_feature_count = geo_feature_count + 1
-                        feature_name = GEO_FEATURE_PREFIX + str(geo_feature_count)
-                        record[feature_name] = jsonfeature
-                        geojson_fields[feature_name] = "geo_shape"
+                record["geoLocationPolygon"] = []
+                for geobbox in geobboxes:
+                    jsonfeature = self.bboxToFeature(geobbox)
+                    record["geoLocationPolygon"].append(jsonfeature)
 
                 cur.execute(self.db._prep("SELECT geopoint.lat, geopoint.lon FROM geopoint WHERE geopoint." + recordidcolumn + "=?"), (record[recordidcolumn],))
                 geopoints = cur.fetchall()
+                record["geoLocationPoint"] = []
                 for geopoint in geopoints:
                     jsonfeature = self.pointToFeature(geopoint)
-                    geo_feature_count = geo_feature_count + 1
-                    feature_name = GEO_FEATURE_PREFIX + str(geo_feature_count)
-                    record[feature_name] = jsonfeature
-                    geojson_fields[feature_name + ".coordinates"] = "geo_point"
+                    record["geoLocationPoint"].append(jsonfeature)
 
                 cur.execute(self.db._prep("""SELECT geoplace.country, geoplace.province_state, geoplace.city, geoplace.other, geoplace.place_name
                     FROM geoplace WHERE geoplace.""" + recordidcolumn + """=?"""), (record[recordidcolumn],))
@@ -264,8 +252,6 @@ class ExporterGmeta(Exporter.Exporter):
             gmeta_data = {"@datatype": "GMetaEntry", "@version": "2016-11-09",
                           "subject": gmeta_subject, "visible_to": ["public"], "mimetype": "application/json",
                           "content": record}
-            if geo_feature_count > 0:
-                gmeta_data["field_mapping"] = geojson_fields
             self.output_buffer.append(gmeta_data)
 
             self.buffer_size = self.buffer_size + len(json.dumps(gmeta_data))
@@ -290,24 +276,6 @@ class ExporterGmeta(Exporter.Exporter):
                 [float(geobbox["westlon"]), float(geobbox["southlat"])]
             ]
         }
-        return feature
-
-    def bboxToFeatureMulti(self, geobboxes):
-        feature = {
-            "type": "MultiPolygon",
-            "coordinates": []
-        }
-        for geobbox in geobboxes:
-            ring1 = [
-                [float(geobbox["westlon"]), float(geobbox["southlat"])],
-                [float(geobbox["westlon"]), float(geobbox["northlat"])],
-                [float(geobbox["eastlon"]), float(geobbox["northlat"])],
-                [float(geobbox["eastlon"]), float(geobbox["southlat"])],
-                [float(geobbox["westlon"]), float(geobbox["southlat"])]
-            ]
-            poly = []
-            poly.append(ring1)
-            feature["coordinates"].append(poly)
         return feature
 
     def pointToFeature(self, geopoint):
