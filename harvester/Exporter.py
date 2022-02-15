@@ -66,8 +66,8 @@ class Exporter(object):
                     "gmeta": self.output_buffer
                 },
                 "field_mapping": {
-                    "geoLocationPoint": "geo_point",
-                    "geoLocationPolygon": "geo_shape",
+                    "geoLocationPoint.coordinates": "geo_point",
+                    "geoLocationPolygon": "geo_shape"
                 }
             }
             output = json.dumps(gmeta)
