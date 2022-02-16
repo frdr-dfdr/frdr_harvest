@@ -137,23 +137,30 @@ class CKANRepository(HarvestRepository):
         if "manager_or_supervisor" in ckan_record and ckan_record["manager_or_supervisor"]:
             record["contributor"].append(ckan_record["manager_or_supervisor"])
 
-        # CIOOS only
+        # CIOOS and Hakai only
         if ('metadata-point-of-contact' in ckan_record) and ckan_record['metadata-point-of-contact']:
             record["contributor"] = []
-            point_of_contact = json.loads(ckan_record['metadata-point-of-contact'])
-            if ("organisation-name" in point_of_contact) and point_of_contact["organisation-name"]:
-                if point_of_contact["organisation-name"] not in record["creator"]:
-                    record["contributor"].append(point_of_contact["organisation-name"])
-            if ("individual-name" in point_of_contact) and point_of_contact["individual-name"]:
-                if point_of_contact["individual-name"] not in record["creator"]:
-                    record["contributor"].append(point_of_contact["individual-name"])
+            points_of_contact = ckan_record['metadata-point-of-contact']
+            if isinstance(points_of_contact, str):
+                points_of_contact = json.loads(ckan_record['metadata-point-of-contact'])
+            if isinstance(points_of_contact, dict):
+                points_of_contact = [points_of_contact]
+            for point_of_contact in points_of_contact:
+                if ("organisation-name" in point_of_contact) and point_of_contact["organisation-name"]:
+                    if point_of_contact["organisation-name"] not in record["creator"]:
+                        if isinstance(point_of_contact["organisation-name"], list):
+                            point_of_contact["organisation-name"] = "; ".join(point_of_contact["organisation-name"])
+                        record["contributor"].append(point_of_contact["organisation-name"])
+                if ("individual-name" in point_of_contact) and point_of_contact["individual-name"]:
+                    if point_of_contact["individual-name"] not in record["creator"]:
+                        record["contributor"].append(point_of_contact["individual-name"])
 
         record["contributor"] = list(set([x.strip() for x in record["contributor"] if x != '']))
         record["contributor"] = list(set(record["contributor"]))
         if len(record["contributor"]) == 0:
             record.pop("contributor")
 
-        # CIOOS only
+        # CIOOS and Hakai only
         if ('organization' in ckan_record) and ckan_record['organization']:
             if ('title_translated' in ckan_record['organization']) and ckan_record['organization']['title_translated']:
                 record["publisher"] = ckan_record['organization']['title_translated'].get("en", "") \
@@ -164,6 +171,8 @@ class CKANRepository(HarvestRepository):
                     record["publisher"] = record["publisher"][3:]
                 elif record["publisher"][-3:] == (" / "):
                     record["publisher"] = record["publisher"][:-3]
+            elif ('title' in ckan_record['organization']) and ckan_record['organization']['title']:
+                record["publisher"] = ckan_record['organization']['title']
 
         if ('owner_division' in ckan_record) and ckan_record['owner_division']:
             # Toronto
@@ -250,7 +259,7 @@ class CKANRepository(HarvestRepository):
             elif self.default_language == "fr":
                 record["subject_fr"] = ckan_record.get('subject', "")
         elif "groups" in ckan_record and ckan_record["groups"]:
-            # Surrey, CanWin Data Hub, Quebec, Montreal, Yukon (plus Guelph, Niagara)
+            # Surrey, CanWin Data Hub, Quebec, Montreal, Yukon, Hakai
             record["subject"] = []
             record["subject_fr"] = []
             for group in ckan_record["groups"]:
