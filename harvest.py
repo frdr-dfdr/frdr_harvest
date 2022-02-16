@@ -30,7 +30,7 @@ from harvester.CKANRepository import CKANRepository
 from harvester.DataverseRepository import DataverseRepository
 from harvester.MarkLogicRepository import MarkLogicRepository
 from harvester.OpenDataSoftRepository import OpenDataSoftRepository
-from harvester.CSWRepository import CSWRepository
+from harvester.GeoNetworkRepository import GeoNetworkRepository
 from harvester.SocrataRepository import SocrataRepository
 from harvester.DataStreamRepository import DataStreamRepository
 from harvester.ArcGISRepository import ArcGISRepository
@@ -143,8 +143,8 @@ if __name__ == "__main__":
                 repo = MarkLogicRepository(final_config)
             elif repoconfig['type'] == "opendatasoft":
                 repo = OpenDataSoftRepository(final_config)
-            elif repoconfig['type'] == "csw":
-                repo = CSWRepository(final_config)
+            elif repoconfig['type'] == "geonetwork":
+                repo = GeoNetworkRepository(final_config)
             elif repoconfig['type'] == "socrata":
                 repo = SocrataRepository(final_config)
             elif repoconfig['type'] == "datastream":
