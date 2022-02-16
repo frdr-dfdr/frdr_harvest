@@ -26,6 +26,8 @@ class CKANRepository(HarvestRepository):
             self.ckan_strip_from_identifier = ""
         if "ckan_access_field" not in repoParams:
             self.ckan_access_field = ""
+        if "ckan_creator_field" not in repoParams:
+            self.ckan_creator_field = ""
         if "ckan_ignore_date" not in repoParams:
             self.ckan_ignore_date = False
 
@@ -93,12 +95,19 @@ class CKANRepository(HarvestRepository):
         if not 'date_published' in ckan_record and not 'dates' in ckan_record and not 'record_publish_date' in ckan_record and not 'metadata_created' in ckan_record and not 'date_issued' in ckan_record:
             return None
 
-        if ("contacts" in ckan_record) and ckan_record["contacts"]:
+
+        if not self.ckan_creator_field:
+            for creator_field in ["contacts", "author", "maintainer", "creator", "cited-responsible-party", "organization"]: # defines priority order
+                if (creator_field in ckan_record) and ckan_record[creator_field]:
+                    self.ckan_creator_field == creator_field
+                    break
+
+        if self.ckan_creator_field == "contacts":
             contacts = ckan_record["contacts"]
             if isinstance(contacts, str) and contacts[0:2]=="[{":
                 contacts = json.loads(ckan_record["contacts"])
             record["creator"] = [person.get('name', "") for person in contacts]
-        elif ('author' in ckan_record) and ckan_record['author']:
+        elif self.ckan_creator_field == "author":
             try:
                 authors = json.loads(ckan_record["author"])
                 record["creator"] = []
@@ -106,22 +115,30 @@ class CKANRepository(HarvestRepository):
                     record["creator"].append(author["author_name"])
             except Exception as e:
                 record["creator"] = ckan_record['author']
-        elif ('maintainer' in ckan_record) and ckan_record['maintainer']:
+        elif self.ckan_creator_field == "maintainer":
             record["creator"] = ckan_record['maintainer']
-        elif ('creator' in ckan_record) and ckan_record['creator']:
+        elif self.ckan_creator_field == "creator":
             record["creator"] = ckan_record["creator"]
-        elif ('organization' in ckan_record) and ckan_record['organization'] and ckan_record['organization'].get('title', "") != "":
-            record["creator"] = ckan_record['organization'].get('title', "")
-        elif self.name == 'Canadian Integrated Ocean Observing System (CIOOS)':
+        elif self.ckan_creator_field == "cited-responsible-party": # FIXME add to docs and repos.json for Hakai and CIOOS
             record["creator"] = []
-            if ('cited-responsible-party' in ckan_record) and ckan_record['cited-responsible-party']:
-                for creator in json.loads(ckan_record['cited-responsible-party']):
-                    if ("organisation-name" in creator) and creator["organisation-name"]:
-                        if creator["organisation-name"] not in record["creator"]:
-                            record["creator"].append(creator["organisation-name"])
-                    if ("individual-name" in creator) and creator["individual-name"]:
-                        if creator["individual-name"] not in record["creator"]:
-                            record["creator"].append(creator["individual-name"])
+            record["affiliation"] = []
+            cited_responsible_parties = ckan_record['cited-responsible-party']
+            if isinstance(cited_responsible_parties, str):
+                cited_responsible_parties = json.loads(ckan_record['cited-responsible-party'])
+            for creator in cited_responsible_parties:
+                if ("individual-name" in creator) and creator["individual-name"]: # individual creator
+                    if creator["individual-name"] not in record["creator"]:
+                        record["creator"].append(creator["individual-name"])
+                    if ("organisation-name" in creator) and creator["organisation-name"]: # individual w/affiliation
+                        if isinstance(creator["organisation-name"], list):
+                            creator["organisation-name"] = "; ".join(creator["organisation-name"])
+                        if creator["organisation-name"] not in record["affiliation"]:
+                            record["affiliation"].append(creator["organisation-name"])
+                elif ("organisation-name" in creator) and creator["organisation-name"]: # org creator
+                    if creator["organisation-name"] not in record["creator"]:
+                        record["creator"].append(creator["organisation-name"])
+        elif self.ckan_creator_field == "organization" and ckan_record['organization'].get('title', "") != "":
+            record["creator"] = ckan_record['organization'].get('title', "")
         else:
             record["creator"] = self.name
 
@@ -302,25 +319,47 @@ class CKANRepository(HarvestRepository):
         # Look for publication date in a few places
         # All of these assume the date will start with year first
         record["pub_date"] = ""
-        if ('record_publish_date' in ckan_record):
+        if not record["pub_date"] and ('record_publish_date' in ckan_record):
             # Prefer an explicit publish date if it exists
             record["pub_date"] = ckan_record["record_publish_date"]
-        elif ('date_published' in ckan_record and ckan_record["date_published"]):
+        if not record["pub_date"] and ('date_published' in ckan_record and ckan_record["date_published"]):
             # Another possible field name for publication date
             record["pub_date"] = ckan_record["date_published"]
-        elif ('dates' in ckan_record and isinstance(ckan_record["dates"], list)):
+        if not record["pub_date"] and ('dates' in ckan_record and isinstance(ckan_record["dates"], list)):
             # A list of date objects, look for the one marked as Created
             for date_object in ckan_record['dates']:
                 if date_object.type == "Created":
                     record["pub_date"] = date_object.date
-        elif ("dates" in ckan_record and isinstance(ckan_record["dates"], str) and ckan_record["dates"][0:2]=="[{"):
+        if not record["pub_date"] and ("dates" in ckan_record and isinstance(ckan_record["dates"], str) and ckan_record["dates"][0:2]=="[{"):
             # A list stored as a string, parse it then handle as above
             for date_object in json.loads(ckan_record["dates"]):
                 if date_object.type == "Created":
                     record["pub_date"] = date_object.date
-        elif ('date_issued' in ckan_record):
+        if not record["pub_date"] and ('date_issued' in ckan_record):
             record["pub_date"] = ckan_record["date_issued"]
-        elif ('metadata_created' in ckan_record):
+        if not record["pub_date"] and ('dataset-reference-date' in ckan_record) and ckan_record['dataset-reference-date']: # Hakai
+            if isinstance(ckan_record['dataset-reference-date'], str):
+                ckan_record['dataset-reference-date'] = json.loads(ckan_record['dataset-reference-date'])
+            for dataset_reference_date in ckan_record['dataset-reference-date']:
+                if 'type' in dataset_reference_date and 'value' in dataset_reference_date:
+                    if dataset_reference_date['type'] == "publication":
+                        record["pub_date"] = dataset_reference_date['value']
+                        break
+                    elif dataset_reference_date['type'] == "creation":
+                        record["pub_date"] = dataset_reference_date['value']
+                    elif dataset_reference_date['type'] == "revision":
+                        record["pub_date"] = dataset_reference_date['value']
+        if not record["pub_date"] and ('metadata-reference-date' in ckan_record) and ckan_record['metadata-reference-date']:
+            if isinstance(ckan_record['metadata-reference-date'], str):
+                ckan_record['metadata-reference-date'] = json.loads(ckan_record['metadata-reference-date'])
+            for metadata_reference_date in ckan_record['metadata-reference-date']:
+                if 'type' in metadata_reference_date and 'value' in metadata_reference_date:
+                    if metadata_reference_date['type'] == "creation":
+                        record["pub_date"] = metadata_reference_date['value']
+                        break
+                    elif metadata_reference_date['type'] == "revision":
+                        record["pub_date"] = metadata_reference_date['value']
+        if not record["pub_date"] and ('metadata_created' in ckan_record):
             record["pub_date"] = ckan_record["metadata_created"]
             if self.ckan_ignore_date and self.ckan_ignore_date in record["pub_date"]: # Yukon
                 if ('metadata_modified' in ckan_record):
@@ -330,7 +369,7 @@ class CKANRepository(HarvestRepository):
             try:
                 month_day_year = record["pub_date"].split(", ")[1].split(" - ")[0].split("/")
                 record["pub_date"] = month_day_year[2] + "-" + month_day_year[0] + "-" + month_day_year[1]
-            except Exception as e:
+            except IndexError:
                 pass
 
         # Some date formats have a trailing timestamp after date (ie: "2014-12-10T15:05:03.074998Z")
