@@ -196,9 +196,9 @@ class CKANRepository(HarvestRepository):
 
         # If a CanWin Data Hub record has a doi it is preferred over the local identifier
         doi = ckan_record.get("project_doi")
-        if self.name == "CanWin Data Hub" and doi and doi.strip():
+        if self.name == 'CanWin Data Hub' and doi and doi.strip():
             record["item_url"] = "https://doi.org/" + ckan_record["project_doi"]
-        elif self.item_url_pattern:
+        elif self.item_url_pattern and not self.ckan_strip_from_identifier:
             record["item_url"] = self.item_url_pattern.replace("%id%", ckan_record["id"])
         else:
             record["item_url"] = ckan_record["url"]
