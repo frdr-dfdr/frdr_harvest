@@ -32,7 +32,8 @@ class HarvestRepository(object):
             'error_count': 0,
             'db': None,
             'logger': None,
-            'dataverses_list': None
+            'dataverses_list': None,
+            'repo_registry_uri': ""
         }
         for key, value in defaultParams.items():
             setattr(self, key, value)

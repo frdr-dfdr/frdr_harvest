@@ -18,11 +18,13 @@ class ExporterDataverse(Exporter.Exporter):
     def _generate(self, only_new_records):
         self.logger.info("Exporter: generate called for dataverse")
         self.logger.info("Maximum {} records per batch".format(self.records_per_loop))
+        recordidcolumn = self.db.get_table_id_column("records")
 
         records_con = self.db.getConnection()
         with records_con:
             records_cursor = records_con.cursor()
-        records_sql = """SELECT recs.record_id, recs.item_url, recs.pub_date, recs.title, recs.title_fr, recs.item_url, recs.series, recs.repository_id, recs.files_altered, reps.repository_url, reps.repository_name, reps.repository_type
+        records_sql = """SELECT recs.""" + recordidcolumn + """, recs.item_url, recs.pub_date, recs.title, recs.title_fr, recs.item_url, recs.series, 
+            recs.repository_id, recs.files_altered, reps.repository_url, reps.repository_name, reps.repository_type
             FROM records recs
             JOIN repositories reps on reps.repository_id = recs.repository_id
             WHERE recs.geodisy_harvested = 0 AND recs.deleted = 0 AND (recs.title <>''OR recs.title_fr <> '') LIMIT ?"""
@@ -30,7 +32,8 @@ class ExporterDataverse(Exporter.Exporter):
 
         records = []
         for row in records_cursor:
-            record = (dict(zip(['record_id','item_url','pub_date','title', 'title_fr','item_url','series','repository_id', 'files_altered', 'repository_url', 'repository_name','repository_type'], row)))
+            record = (dict(zip([recordidcolumn,'item_url','pub_date','title', 'title_fr','item_url','series','repository_id', 'files_altered', 
+                'repository_url', 'repository_name','repository_type'], row)))
             records.append(record)
         cur = self.db.getLambdaCursor()
         records_sql = """SELECT count(*)
@@ -45,7 +48,7 @@ class ExporterDataverse(Exporter.Exporter):
 
 
         # TODO finish generating a list of deleted items for Geodisy
-        deleted_sql = """SELECT recs.record_id, recs.item_url, recs.item_url, recs.repository_id, reps.repository_url
+        deleted_sql = """SELECT recs.""" + recordidcolumn + """, recs.item_url, recs.item_url, recs.repository_id, reps.repository_url
                     FROM records recs
                     JOIN repositories reps on reps.repository_id = recs.repository_id
                     WHERE geodisy_harvested = 0 AND deleted = 1 LIMIT ?"""
@@ -54,7 +57,7 @@ class ExporterDataverse(Exporter.Exporter):
         deleted = []
         for row in records_cursor:
             deleted_record = (
-                dict(zip(['record_id', 'item_url', 'item_url', 'repository_id', 'repository_url'], row)))
+                dict(zip([recordidcolumn, 'item_url', 'item_url', 'repository_id', 'repository_url'], row)))
             deleted.append(deleted_record)
         self.get_batch_deleted_records(0, len(records), deleted)
 
@@ -88,9 +91,10 @@ class ExporterDataverse(Exporter.Exporter):
     def _generate_dv_json(self, record):
         if self.get_citation_metadata_field(record) is None:
             return {}
+        recordidcolumn = self.db.get_table_id_column("records")
 
         record_dv_data = {
-            "id": record["record_id"],
+            "id": record[recordidcolumn],
             "persistentUrl": record["item_url"],
             "publicationDate": record["pub_date"],
             "license": self.get_license(record),
@@ -134,12 +138,13 @@ class ExporterDataverse(Exporter.Exporter):
             return citations
 
     def get_authors(self, record):
+        recordidcolumn = self.db.get_table_id_column("records")
         cur = self.db.getLambdaCursor()
         retlist = []
         try:
             cur.execute(self.db._prep("""SELECT creators.creator FROM creators JOIN records_x_creators on records_x_creators.creator_id = creators.creator_id
-                WHERE records_x_creators.record_id=? AND records_x_creators.is_contributor=0 order by records_x_creators_id asc"""),
-                            (record["record_id"],))
+                WHERE records_x_creators.""" + recordidcolumn + """=? AND records_x_creators.is_contributor=0 order by records_x_creators_id asc"""),
+                            (record[recordidcolumn],))
             vals = self._rows_to_list(cur)
             for val in vals:
                 retlist.append({"authorName": self.json_dv_dict("authorName", "false", "primitive", val)})
@@ -148,12 +153,13 @@ class ExporterDataverse(Exporter.Exporter):
         return retlist
 
     def get_descriptions(self, record):
+        recordidcolumn = self.db.get_table_id_column("records")
         cur = self.db.getLambdaCursor()
         retlist = []
         try:
             cur.execute(
-                self.db._prep("SELECT description FROM descriptions WHERE record_id=? and language='en' "),
-                (record["record_id"],))
+                self.db._prep("SELECT description FROM descriptions WHERE " + recordidcolumn + "=? and language='en' "),
+                (record[recordidcolumn],))
             vals = self._rows_to_list(cur)
             for val in vals:
                 retlist.append({"dsDescriptionValue": self.json_dv_dict("dsDescriptionValue", "false", "primitive", val)})
@@ -162,11 +168,12 @@ class ExporterDataverse(Exporter.Exporter):
         return retlist
 
     def get_subjects(self, record):
+        recordidcolumn = self.db.get_table_id_column("records")
         cur = self.db.getLambdaCursor()
         retlist = []
         try:
             cur.execute(self.db._prep("""SELECT subjects.subject FROM subjects JOIN records_x_subjects on records_x_subjects.subject_id = subjects.subject_id
-                WHERE records_x_subjects.record_id=? and subjects.language='en'"""), (record["record_id"],))
+                WHERE records_x_subjects.""" + recordidcolumn + """=? and subjects.language='en'"""), (record[recordidcolumn],))
             vals = self._rows_to_list(cur)
             for val in vals:
                 retlist.append(val)
@@ -175,11 +182,12 @@ class ExporterDataverse(Exporter.Exporter):
         return retlist
 
     def get_keywords(self, record):
+        recordidcolumn = self.db.get_table_id_column("records")
         cur = self.db.getLambdaCursor()
         retlist = []
         try:
             cur.execute(self.db._prep("""SELECT tags.tag FROM tags JOIN records_x_tags on records_x_tags.tag_id = tags.tag_id
-                WHERE records_x_tags.record_id=? and tags.language = 'en' """), (record["record_id"],))
+                WHERE records_x_tags.""" + recordidcolumn + """=? and tags.language = 'en' """), (record[recordidcolumn],))
             vals = self._rows_to_list(cur)
             for val in vals:
                 retlist.append({"keywordValue": self.json_dv_dict("keywordValue", "false", "primitive", val)})
@@ -191,11 +199,12 @@ class ExporterDataverse(Exporter.Exporter):
         return {"seriesName": self.json_dv_dict("seriesName", "false", "primitive", record["series"])}
 
     def get_license(self, record):
+        recordidcolumn = self.db.get_table_id_column("records")
         cur = self.db.getLambdaCursor()
         retval = ""
         try:
             cur.execute(self.db._prep("""SELECT access.access FROM access JOIN records_x_access on records_x_access.access_id = access.access_id
-                WHERE records_x_access.record_id=?"""), (record["record_id"],))
+                WHERE records_x_access.""" + recordidcolumn + """=?"""), (record[recordidcolumn],))
             vals = self._rows_to_list(cur)
             if vals:
                 retval = vals[0]
@@ -226,15 +235,15 @@ class ExporterDataverse(Exporter.Exporter):
             return geospatial
 
     def get_geo_coverage(self, record):
+        recordidcolumn = self.db.get_table_id_column("records")
         geos_coverage = []
 
         try:
             geocur = self.db.getDictCursor()
             geo_places_sql = """SELECT geoplace.country, geoplace.province_state, geoplace.city, geoplace.other, geoplace.place_name 
                 FROM geoplace
-                JOIN records_x_geoplace ON records_x_geoplace.geoplace_id = geoplace.geoplace_id
-                WHERE records_x_geoplace.record_id=?"""
-            geocur.execute(self.db._prep(geo_places_sql), (record["record_id"],))
+                WHERE geoplace.""" + recordidcolumn + """=?"""
+            geocur.execute(self.db._prep(geo_places_sql), (record[recordidcolumn],))
 
             for row in geocur:
                 # What happened to place_name? It does not appear in the location dict below
@@ -251,17 +260,18 @@ class ExporterDataverse(Exporter.Exporter):
                 if country != "" or state != "" or city != "" or other != "":
                     geos_coverage.append(location)
         except Exception as e:
-            self.logger.error("Unable to get geoplace metadata fields for record: {}".format(record["record_id"]))
+            self.logger.error("Unable to get geoplace metadata fields for record: {}".format(record[recordidcolumn]))
         if not geos_coverage:
             return ""
         return geos_coverage
 
     def get_geo_bbox(self, record):
+        recordidcolumn = self.db.get_table_id_column("records")
         cur = self.db.getDictCursor()
         try:
             cur.execute(self.db._prep(
-                """SELECT westLon, eastLon, northLat, southLat FROM geobbox WHERE record_id=?"""),
-                (record["record_id"],))
+                "SELECT westLon, eastLon, northLat, southLat FROM geobbox WHERE " + recordidcolumn + "=?"),
+                (record[recordidcolumn],))
             coords = []
             for row in cur:
                 west = str(row["westlon"])
@@ -286,11 +296,12 @@ class ExporterDataverse(Exporter.Exporter):
         }
 
     def get_files(self, record):
+        recordidcolumn = self.db.get_table_id_column("records")
         files = []
         cur = self.db.getDictCursor()
         try:
             cur.execute(self.db._prep(
-                    """SELECT filename, uri FROM geofile WHERE record_id=?"""),(record["record_id"],))
+                    "SELECT filename, uri FROM geofile WHERE " + recordidcolumn + "=?"),(record[recordidcolumn],))
             for row in cur:
                 val = {"filename": row["filename"], "uri": row["uri"]}
                 files.append(self.get_file_info(val, record))

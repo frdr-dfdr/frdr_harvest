@@ -1,7 +1,7 @@
-"""Globus Harvester.
+"""FRDR Harvester
 
 Usage:
-  globus_harvester.py [--openrefine-import | --onlyharvest | --onlyexport | --init] [--only-new-records] [--dump-on-failure] [--export-filepath=<file>] [--export-format=<format>] [--repository-id=<id>] [--openrefine-csv=<file>]
+  harvest.py [--openrefine-import | --onlyharvest | --onlyexport | --init] [--only-new-records] [--dump-on-failure] [--export-filepath=<file>] [--export-format=<format>] [--repository-id=<id>] [--openrefine-csv=<file>]
 
 Options:
   --openrefine-import       Don't harvest or export normally; import data from OpenRefine.
@@ -11,7 +11,7 @@ Options:
   --dump-on-failure         If a record ever fails validation, print the whole record.
   --export-filepath=<file>  The path to export the data to.
   --openrefine-csv=<file>   The CSV from OpenRefine to import.
-  --export-format=<format>  The export format (currently gmeta or xml).
+  --export-format=<format>  The export format (currently gmeta or dataverse).
   --repository-id=<id>      Only export this repository, based on the database table ID
   --init                    Just initialize the database, do not harvest or export.
 
@@ -30,9 +30,14 @@ from harvester.CKANRepository import CKANRepository
 from harvester.DataverseRepository import DataverseRepository
 from harvester.MarkLogicRepository import MarkLogicRepository
 from harvester.OpenDataSoftRepository import OpenDataSoftRepository
-from harvester.CSWRepository import CSWRepository
+from harvester.GeoNetworkRepository import GeoNetworkRepository
 from harvester.SocrataRepository import SocrataRepository
 from harvester.DataStreamRepository import DataStreamRepository
+from harvester.ArcGISRepository import ArcGISRepository
+from harvester.DataCiteRepository import DataCiteRepository
+from harvester.DryadRepository import DryadRepository
+from harvester.ZenodoRepository import ZenodoRepository
+from harvester.NexusRepository import NexusRepository
 from harvester.DBInterface import DBInterface
 from harvester.HarvestLogger import HarvestLogger
 from harvester.TimeFormatter import TimeFormatter
@@ -92,6 +97,8 @@ if __name__ == "__main__":
     final_config['export_file_limit_mb'] = int(config['export'].get('export_file_limit_mb', 10))
     final_config['export_format'] = config['export'].get('export_format', "gmeta")
     final_config['socrata_app_token'] = config['socrata'].get('app_token', None)
+    final_config['ror_json_url'] = config['ror'].get('ror_json_url', None)
+    final_config['ror_data_file'] =  "data/ror-data.json"
     final_config['repository_id'] = None
 
     main_log = HarvestLogger(config['logging'])
@@ -137,12 +144,22 @@ if __name__ == "__main__":
                 repo = MarkLogicRepository(final_config)
             elif repoconfig['type'] == "opendatasoft":
                 repo = OpenDataSoftRepository(final_config)
-            elif repoconfig['type'] == "csw":
-                repo = CSWRepository(final_config)
+            elif repoconfig['type'] == "geonetwork":
+                repo = GeoNetworkRepository(final_config)
             elif repoconfig['type'] == "socrata":
                 repo = SocrataRepository(final_config)
             elif repoconfig['type'] == "datastream":
                 repo = DataStreamRepository(final_config)
+            elif repoconfig['type'] == "arcgis":
+                repo = ArcGISRepository(final_config)
+            elif repoconfig['type'] == "datacite":
+                repo = DataCiteRepository(final_config)
+            elif repoconfig['type'] == "dryad":
+                repo = DryadRepository(final_config)
+            elif repoconfig['type'] == "zenodo":
+                repo = ZenodoRepository(final_config)
+            elif repoconfig['type'] == "nexus":
+                repo = NexusRepository(final_config)
             repo.setLogger(main_log)
             if 'copyerrorstoemail' in repoconfig and not repoconfig['copyerrorstoemail']:
                 main_log.setErrorsToEmail(False)

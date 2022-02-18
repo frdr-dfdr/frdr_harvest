@@ -39,7 +39,8 @@ class CKANRepository(HarvestRepository):
             "update_log_after_numitems": self.update_log_after_numitems,
             "record_refresh_days": self.record_refresh_days,
             "repo_refresh_days": self.repo_refresh_days, "homepage_url": self.homepage_url,
-            "repo_oai_name": self.repo_oai_name
+            "repo_oai_name": self.repo_oai_name,
+            "repo_registry_uri": self.repo_registry_uri
         }
         self.repository_id = self.db.update_repo(**kwargs)
 
@@ -67,7 +68,7 @@ class CKANRepository(HarvestRepository):
             if not self.ckan_include_identifier_pattern or self.ckan_include_identifier_pattern in ckan_identifier: # Yukon
                 if self.ckan_strip_from_identifier:
                     ckan_identifier = ckan_identifier.replace(self.ckan_strip_from_identifier,"")
-                self.db.write_header(ckan_identifier, self.repository_id)
+                self.db.write_header(ckan_identifier, self.item_url_pattern, self.repository_id)
                 item_count = item_count + 1
                 if (item_count % self.update_log_after_numitems == 0):
                     tdelta = time.time() - self.tstart + 0.1
@@ -92,8 +93,11 @@ class CKANRepository(HarvestRepository):
         if not 'date_published' in ckan_record and not 'dates' in ckan_record and not 'record_publish_date' in ckan_record and not 'metadata_created' in ckan_record and not 'date_issued' in ckan_record:
             return None
 
-        if ('contacts' in ckan_record) and ckan_record['contacts']:
-            record["creator"] = [person.get('name', "") for person in ckan_record['contacts']]
+        if ("contacts" in ckan_record) and ckan_record["contacts"]:
+            contacts = ckan_record["contacts"]
+            if isinstance(contacts, str) and contacts[0:2]=="[{":
+                contacts = json.loads(ckan_record["contacts"])
+            record["creator"] = [person.get('name', "") for person in contacts]
         elif ('author' in ckan_record) and ckan_record['author']:
             try:
                 authors = json.loads(ckan_record["author"])
@@ -298,6 +302,11 @@ class CKANRepository(HarvestRepository):
         elif ('dates' in ckan_record and isinstance(ckan_record["dates"], list)):
             # A list of date objects, look for the one marked as Created
             for date_object in ckan_record['dates']:
+                if date_object.type == "Created":
+                    record["pub_date"] = date_object.date
+        elif ("dates" in ckan_record and isinstance(ckan_record["dates"], str) and ckan_record["dates"][0:2]=="[{"):
+            # A list stored as a string, parse it then handle as above
+            for date_object in json.loads(ckan_record["dates"]):
                 if date_object.type == "Created":
                     record["pub_date"] = date_object.date
         elif ('date_issued' in ckan_record):

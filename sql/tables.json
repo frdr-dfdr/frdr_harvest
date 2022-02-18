@@ -43,25 +43,31 @@
   },
   "geobbox": {
     "idcol": "geobbox_id",
-    "valcol": "record_id",
+    "valcol": "record_uuid",
     "extracolumn": "",
     "crosstable": ""
   },
   "geofile": {
     "idcol": "geofile_id",
-    "valcol": "record_id",
+    "valcol": "record_uuid",
+    "extracolumn": "",
+    "crosstable": ""
+  },
+  "geonames": {
+    "idcol": "geonames_id",
+    "valcol": "country",
     "extracolumn": "",
     "crosstable": ""
   },
   "geoplace": {
     "idcol": "geoplace_id",
-    "valcol": "place_name",
+    "valcol": "record_uuid",
     "extracolumn": "",
-    "crosstable": "records_x_geoplace"
+    "crosstable": ""
   },
   "geopoint": {
     "idcol": "geopoint_id",
-    "valcol": "record_id",
+    "valcol": "record_uuid",
     "extracolumn": "",
     "crosstable": ""
   },
@@ -78,7 +84,7 @@
     "crosstable": "records_x_publishers"
   },
   "records": {
-    "idcol": "record_id",
+    "idcol": "record_uuid",
     "valcol": "local_identifier",
     "extracolumn": "",
     "crosstable": ""
@@ -104,12 +110,6 @@
   "records_x_creators": {
     "idcol": "records_x_creators_id",
     "valcol": "creator_id",
-    "extracolumn": "",
-    "crosstable": ""
-  },
-  "records_x_geoplace": {
-    "idcol": "records_x_geoplace_id",
-    "valcol": "geoplace_id",
     "extracolumn": "",
     "crosstable": ""
   },
