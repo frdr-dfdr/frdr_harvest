@@ -26,6 +26,8 @@ class CKANRepository(HarvestRepository):
             self.ckan_strip_from_identifier = ""
         if "ckan_access_field" not in repoParams:
             self.ckan_access_field = ""
+        if "ckan_creator_field" not in repoParams:
+            self.ckan_creator_field = ""
         if "ckan_ignore_date" not in repoParams:
             self.ckan_ignore_date = False
 
@@ -48,17 +50,17 @@ class CKANRepository(HarvestRepository):
             r = requests.get(self.url + self.ckan_api_endpoint + "/package_list")
             records = json.loads(r.text)["result"]
         else:
-            records = self.ckanrepo.call_action('package_list', requests_kwargs={'verify': False})
+            records = self.ckanrepo.call_action("package_list", requests_kwargs={"verify": False})
 
         # If response is limited to 1000, get all records with pagination
         if len(records) == 1000:
             offset = 0
-            records = self.ckanrepo.call_action('package_list?limit=1000&offset=' + str(offset), requests_kwargs={'verify': False})
+            records = self.ckanrepo.call_action("package_list?limit=1000&offset=" + str(offset), requests_kwargs={"verify": False})
 
             # Iterate through sets of 1000 records until no records returned
             while len(records) % 1000 == 0:
                 offset +=1000
-                response = self.ckanrepo.call_action('package_list?limit=1000&offset=' + str(offset), requests_kwargs={'verify': False})
+                response = self.ckanrepo.call_action("package_list?limit=1000&offset=" + str(offset), requests_kwargs={"verify": False})
                 if len(response) == 0:
                     break
                 records = records + response
@@ -80,55 +82,67 @@ class CKANRepository(HarvestRepository):
     def format_ckan_to_oai(self, ckan_record, local_identifier):
         record = {}
 
-        if ('type' in ckan_record) and ckan_record['type']:
+        if ("type" in ckan_record) and ckan_record["type"]:
             # Exclude showcases and other non-dataset records (publications from Alberta, info from Open Data Canada)
-            if ckan_record['type'] in ['showcase', 'publications', 'info', 'harvest']:
+            if ckan_record["type"] in ["showcase", "publications", "info", "harvest"]:
                 return False
 
-        if ('portal_type' in ckan_record) and ckan_record['portal_type']:
+        if ("portal_type" in ckan_record) and ckan_record["portal_type"]:
             # Exclude "info" records (not "data") from Canadian Space Agency
-            if ckan_record['portal_type'] in ['info']:
+            if ckan_record["portal_type"] in ["info"]:
                 return False
 
-        if not 'date_published' in ckan_record and not 'dates' in ckan_record and not 'record_publish_date' in ckan_record and not 'metadata_created' in ckan_record and not 'date_issued' in ckan_record:
-            return None
+        creator_field = self.ckan_creator_field
+        if not creator_field:
+            for creator_field_name in ["contacts", "author", "maintainer", "creator", "cited-responsible-party", "organization"]: # defines priority order
+                if (creator_field_name in ckan_record) and ckan_record[creator_field_name]:
+                    creator_field = creator_field_name
+                    break
 
-        if ("contacts" in ckan_record) and ckan_record["contacts"]:
+        if creator_field == "contacts":
             contacts = ckan_record["contacts"]
             if isinstance(contacts, str) and contacts[0:2]=="[{":
                 contacts = json.loads(ckan_record["contacts"])
-            record["creator"] = [person.get('name', "") for person in contacts]
-        elif ('author' in ckan_record) and ckan_record['author']:
+            record["creator"] = [person.get("name", "") for person in contacts]
+        elif creator_field == "author":
             try:
                 authors = json.loads(ckan_record["author"])
                 record["creator"] = []
                 for author in authors:
                     record["creator"].append(author["author_name"])
             except Exception as e:
-                record["creator"] = ckan_record['author']
-        elif ('maintainer' in ckan_record) and ckan_record['maintainer']:
-            record["creator"] = ckan_record['maintainer']
-        elif ('creator' in ckan_record) and ckan_record['creator']:
+                record["creator"] = ckan_record["author"]
+        elif creator_field == "maintainer":
+            record["creator"] = ckan_record["maintainer"]
+        elif creator_field == "creator":
             record["creator"] = ckan_record["creator"]
-        elif ('organization' in ckan_record) and ckan_record['organization'] and ckan_record['organization'].get('title', "") != "":
-            record["creator"] = ckan_record['organization'].get('title', "")
-        elif self.name == 'Canadian Integrated Ocean Observing System (CIOOS)':
+        elif creator_field == "cited-responsible-party": # FIXME add to docs and repos.json for Hakai and CIOOS
             record["creator"] = []
-            if ('cited-responsible-party' in ckan_record) and ckan_record['cited-responsible-party']:
-                for creator in json.loads(ckan_record['cited-responsible-party']):
-                    if ("organisation-name" in creator) and creator["organisation-name"]:
-                        if creator["organisation-name"] not in record["creator"]:
-                            record["creator"].append(creator["organisation-name"])
-                    if ("individual-name" in creator) and creator["individual-name"]:
-                        if creator["individual-name"] not in record["creator"]:
-                            record["creator"].append(creator["individual-name"])
+            record["affiliation"] = []
+            cited_responsible_parties = ckan_record["cited-responsible-party"]
+            if isinstance(cited_responsible_parties, str):
+                cited_responsible_parties = json.loads(ckan_record["cited-responsible-party"])
+            for creator in cited_responsible_parties:
+                if ("individual-name" in creator) and creator["individual-name"]: # individual creator
+                    if creator["individual-name"] not in record["creator"]:
+                        record["creator"].append(creator["individual-name"])
+                    if ("organisation-name" in creator) and creator["organisation-name"]: # individual w/affiliation
+                        if isinstance(creator["organisation-name"], list):
+                            creator["organisation-name"] = "; ".join(creator["organisation-name"])
+                        if creator["organisation-name"] not in record["affiliation"]:
+                            record["affiliation"].append(creator["organisation-name"])
+                elif ("organisation-name" in creator) and creator["organisation-name"]: # org creator
+                    if creator["organisation-name"] not in record["creator"]:
+                        record["creator"].append(creator["organisation-name"])
+        elif creator_field == "organization" and ckan_record["organization"].get("title", "") != "":
+            record["creator"] = ckan_record["organization"].get("title", "")
         else:
             record["creator"] = self.name
 
         if not isinstance(record["creator"], list):
             record["creator"] = [record["creator"]]
 
-        record["creator"] = [ftfy.fixes.decode_escapes(x).strip() for x in record["creator"] if x != '']
+        record["creator"] = [ftfy.fixes.decode_escapes(x).strip() for x in record["creator"] if x != ""]
 
         record["contributor"] = []
         # CSA only
@@ -137,45 +151,54 @@ class CKANRepository(HarvestRepository):
         if "manager_or_supervisor" in ckan_record and ckan_record["manager_or_supervisor"]:
             record["contributor"].append(ckan_record["manager_or_supervisor"])
 
-        # CIOOS only
-        if ('metadata-point-of-contact' in ckan_record) and ckan_record['metadata-point-of-contact']:
+        # CIOOS and Hakai only
+        if ("metadata-point-of-contact" in ckan_record) and ckan_record["metadata-point-of-contact"]:
             record["contributor"] = []
-            point_of_contact = json.loads(ckan_record['metadata-point-of-contact'])
-            if ("organisation-name" in point_of_contact) and point_of_contact["organisation-name"]:
-                if point_of_contact["organisation-name"] not in record["creator"]:
-                    record["contributor"].append(point_of_contact["organisation-name"])
-            if ("individual-name" in point_of_contact) and point_of_contact["individual-name"]:
-                if point_of_contact["individual-name"] not in record["creator"]:
-                    record["contributor"].append(point_of_contact["individual-name"])
+            points_of_contact = ckan_record["metadata-point-of-contact"]
+            if isinstance(points_of_contact, str):
+                points_of_contact = json.loads(ckan_record["metadata-point-of-contact"])
+            if isinstance(points_of_contact, dict):
+                points_of_contact = [points_of_contact]
+            for point_of_contact in points_of_contact:
+                if ("organisation-name" in point_of_contact) and point_of_contact["organisation-name"]:
+                    if point_of_contact["organisation-name"] not in record["creator"]:
+                        if isinstance(point_of_contact["organisation-name"], list):
+                            point_of_contact["organisation-name"] = "; ".join(point_of_contact["organisation-name"])
+                        record["contributor"].append(point_of_contact["organisation-name"])
+                if ("individual-name" in point_of_contact) and point_of_contact["individual-name"]:
+                    if point_of_contact["individual-name"] not in record["creator"]:
+                        record["contributor"].append(point_of_contact["individual-name"])
 
-        record["contributor"] = list(set([x.strip() for x in record["contributor"] if x != '']))
+        record["contributor"] = list(set([x.strip() for x in record["contributor"] if x != ""]))
         record["contributor"] = list(set(record["contributor"]))
         if len(record["contributor"]) == 0:
             record.pop("contributor")
 
-        # CIOOS only
-        if ('organization' in ckan_record) and ckan_record['organization']:
-            if ('title_translated' in ckan_record['organization']) and ckan_record['organization']['title_translated']:
-                record["publisher"] = ckan_record['organization']['title_translated'].get("en", "") \
-                                      + " / " + ckan_record['organization']['title_translated'].get("fr", "")
+        # CIOOS and Hakai only
+        if ("organization" in ckan_record) and ckan_record["organization"]:
+            if ("title_translated" in ckan_record["organization"]) and ckan_record["organization"]["title_translated"]:
+                record["publisher"] = ckan_record["organization"]["title_translated"].get("en", "") \
+                                      + " / " + ckan_record["organization"]["title_translated"].get("fr", "")
                 if len(record["publisher"]) == 3:
                     record["publisher"] = ""
                 elif record["publisher"][:3] == (" / "):
                     record["publisher"] = record["publisher"][3:]
                 elif record["publisher"][-3:] == (" / "):
                     record["publisher"] = record["publisher"][:-3]
+            elif ("title" in ckan_record["organization"]) and ckan_record["organization"]["title"]:
+                record["publisher"] = ckan_record["organization"]["title"]
 
-        if ('owner_division' in ckan_record) and ckan_record['owner_division']:
+        if ("owner_division" in ckan_record) and ckan_record["owner_division"]:
             # Toronto
-            record["publisher"] = ckan_record['owner_division']
+            record["publisher"] = ckan_record["owner_division"]
 
         record["identifier"] = local_identifier
 
         # If a CanWin Data Hub record has a doi it is preferred over the local identifier
         doi = ckan_record.get("project_doi")
         if self.name == 'CanWin Data Hub' and doi and doi.strip():
-            record["item_url"] = "https://doi.org/" + ckan_record['project_doi']
-        elif self.item_url_pattern:
+            record["item_url"] = "https://doi.org/" + ckan_record["project_doi"]
+        elif self.item_url_pattern and not self.ckan_strip_from_identifier:
             record["item_url"] = self.item_url_pattern.replace("%id%", ckan_record["id"])
         else:
             record["item_url"] = ckan_record["url"]
@@ -237,20 +260,20 @@ class CKANRepository(HarvestRepository):
         record["description"] = ftfy.fixes.decode_escapes(record["description"]).strip()
         record["description_fr"] = ftfy.fixes.decode_escapes(record["description_fr"]).strip()
 
-        if ('sector' in ckan_record):
+        if ("sector" in ckan_record):
             # BC Data Catalogue
             if self.default_language == "en":
-                record["subject"] = ckan_record.get('sector', "")
+                record["subject"] = ckan_record.get("sector", "")
             elif self.default_language == "fr":
-                record["subject_fr"] = ckan_record.get('sector', "")
-        elif ('subject' in ckan_record):
+                record["subject_fr"] = ckan_record.get("sector", "")
+        elif ("subject" in ckan_record):
             # Open Data Canada
             if self.default_language == "en":
-                record["subject"] = ckan_record.get('subject', "")
+                record["subject"] = ckan_record.get("subject", "")
             elif self.default_language == "fr":
-                record["subject_fr"] = ckan_record.get('subject', "")
+                record["subject_fr"] = ckan_record.get("subject", "")
         elif "groups" in ckan_record and ckan_record["groups"]:
-            # Surrey, CanWin Data Hub, Quebec, Montreal, Yukon (plus Guelph, Niagara)
+            # Surrey, CanWin Data Hub, Quebec, Montreal, Yukon, Hakai
             record["subject"] = []
             record["subject_fr"] = []
             for group in ckan_record["groups"]:
@@ -280,8 +303,8 @@ class CKANRepository(HarvestRepository):
             record["subject"] = ckan_record["civic_issues"].split(",")
 
 
-        if ('license_title' in ckan_record) and ckan_record['license_title']:
-            record["rights"] = [ckan_record['license_title']]
+        if ("license_title" in ckan_record) and ckan_record["license_title"]:
+            record["rights"] = [ckan_record["license_title"]]
             record["rights"].append(ckan_record.get("license_url", ""))
             record["rights"].append(ckan_record.get("attribution", ""))
             record["rights"] = "\n".join(record["rights"])
@@ -293,36 +316,61 @@ class CKANRepository(HarvestRepository):
         # Look for publication date in a few places
         # All of these assume the date will start with year first
         record["pub_date"] = ""
-        if ('record_publish_date' in ckan_record):
+        if not record["pub_date"] and ("record_publish_date" in ckan_record):
             # Prefer an explicit publish date if it exists
             record["pub_date"] = ckan_record["record_publish_date"]
-        elif ('date_published' in ckan_record and ckan_record["date_published"]):
+        if not record["pub_date"] and ("date_published" in ckan_record and ckan_record["date_published"]):
             # Another possible field name for publication date
             record["pub_date"] = ckan_record["date_published"]
-        elif ('dates' in ckan_record and isinstance(ckan_record["dates"], list)):
+        if not record["pub_date"] and ("dates" in ckan_record and isinstance(ckan_record["dates"], list)):
             # A list of date objects, look for the one marked as Created
-            for date_object in ckan_record['dates']:
+            for date_object in ckan_record["dates"]:
                 if date_object.type == "Created":
                     record["pub_date"] = date_object.date
-        elif ("dates" in ckan_record and isinstance(ckan_record["dates"], str) and ckan_record["dates"][0:2]=="[{"):
+        if not record["pub_date"] and ("dates" in ckan_record and isinstance(ckan_record["dates"], str) and ckan_record["dates"][0:2]=="[{"):
             # A list stored as a string, parse it then handle as above
             for date_object in json.loads(ckan_record["dates"]):
                 if date_object.type == "Created":
                     record["pub_date"] = date_object.date
-        elif ('date_issued' in ckan_record):
+        if not record["pub_date"] and ("date_issued" in ckan_record):
             record["pub_date"] = ckan_record["date_issued"]
-        elif ('metadata_created' in ckan_record):
+        if not record["pub_date"] and ("dataset-reference-date" in ckan_record) and ckan_record["dataset-reference-date"]: # Hakai
+            if isinstance(ckan_record["dataset-reference-date"], str):
+                ckan_record["dataset-reference-date"] = json.loads(ckan_record["dataset-reference-date"])
+            for dataset_reference_date in ckan_record["dataset-reference-date"]:
+                if "type" in dataset_reference_date and "value" in dataset_reference_date:
+                    if dataset_reference_date["type"] == "publication":
+                        record["pub_date"] = dataset_reference_date["value"]
+                        break
+                    elif dataset_reference_date["type"] == "creation":
+                        record["pub_date"] = dataset_reference_date["value"]
+                    elif dataset_reference_date["type"] == "revision":
+                        record["pub_date"] = dataset_reference_date["value"]
+        if not record["pub_date"] and ("metadata-reference-date" in ckan_record) and ckan_record["metadata-reference-date"]:
+            if isinstance(ckan_record["metadata-reference-date"], str):
+                ckan_record["metadata-reference-date"] = json.loads(ckan_record["metadata-reference-date"])
+            for metadata_reference_date in ckan_record["metadata-reference-date"]:
+                if "type" in metadata_reference_date and "value" in metadata_reference_date:
+                    if metadata_reference_date["type"] == "creation":
+                        record["pub_date"] = metadata_reference_date["value"]
+                        break
+                    elif metadata_reference_date["type"] == "revision":
+                        record["pub_date"] = metadata_reference_date["value"]
+        if not record["pub_date"] and ("metadata_created" in ckan_record):
             record["pub_date"] = ckan_record["metadata_created"]
             if self.ckan_ignore_date and self.ckan_ignore_date in record["pub_date"]: # Yukon
-                if ('metadata_modified' in ckan_record):
+                if ("metadata_modified" in ckan_record):
                     record["pub_date"] = ckan_record["metadata_modified"]
                 if self.ckan_ignore_date in record["pub_date"]:
                     record["pub_date"] = ckan_record["revision_timestamp"]
             try:
                 month_day_year = record["pub_date"].split(", ")[1].split(" - ")[0].split("/")
                 record["pub_date"] = month_day_year[2] + "-" + month_day_year[0] + "-" + month_day_year[1]
-            except Exception as e:
+            except IndexError:
                 pass
+
+        if record["pub_date"] == "":
+            return None
 
         # Some date formats have a trailing timestamp after date (ie: "2014-12-10T15:05:03.074998Z")
         record["pub_date"] = re.sub("[T ][0-9][0-9]:[0-9][0-9]:[0-9][0-9]\.?[0-9]*[Z]?$", "", record["pub_date"])
@@ -389,15 +437,15 @@ class CKANRepository(HarvestRepository):
                             record["tags"].append(tag["name"])
 
         if ("west_bound_longitude" in ckan_record) and ("east_bound_longitude" in ckan_record) and \
-                ('north_bound_latitude' in ckan_record) and ('south_bound_latitude' in ckan_record):
+                ("north_bound_latitude" in ckan_record) and ("south_bound_latitude" in ckan_record):
             # BC Data Catalogue
-            record["geobboxes"] = [{"southLat": ckan_record['south_bound_latitude'], "westLon": ckan_record['west_bound_longitude'],
-                                    "northLat": ckan_record['north_bound_latitude'], "eastLon": ckan_record['east_bound_longitude']}]
+            record["geobboxes"] = [{"southLat": ckan_record["south_bound_latitude"], "westLon": ckan_record["west_bound_longitude"],
+                                    "northLat": ckan_record["north_bound_latitude"], "eastLon": ckan_record["east_bound_longitude"]}]
         elif ("bbox-west-long" in ckan_record) and ("bbox-east-long" in ckan_record) and \
-                ('bbox-north-lat' in ckan_record) and ('bbox-south-lat' in ckan_record):
+                ("bbox-north-lat" in ckan_record) and ("bbox-south-lat" in ckan_record):
             # CIOOS
-            record["geobboxes"] = [{"southLat": ckan_record['bbox-south-lat'], "westLon": ckan_record['bbox-west-long'],
-                                    "northLat": ckan_record['bbox-north-lat'], "eastLon": ckan_record['bbox-east-long']}]
+            record["geobboxes"] = [{"southLat": ckan_record["bbox-south-lat"], "westLon": ckan_record["bbox-west-long"],
+                                    "northLat": ckan_record["bbox-north-lat"], "eastLon": ckan_record["bbox-east-long"]}]
         elif ("spatialcoverage1" in ckan_record) and ckan_record["spatialcoverage1"]:
             # Alberta
             spatialcoverage1 = ckan_record["spatialcoverage1"].split(",")
@@ -409,8 +457,8 @@ class CKANRepository(HarvestRepository):
                      "northLat": spatialcoverage1[1], "eastLon": spatialcoverage1[2]}]
             else:
                 # If it isn't split into 4 pieces, use as a place name
-                record["geoplaces"] = [{"place_name": ckan_record['spatialcoverage1']}]
-        elif ("spatial" in ckan_record) and ckan_record['spatial']:
+                record["geoplaces"] = [{"place_name": ckan_record["spatialcoverage1"]}]
+        elif ("spatial" in ckan_record) and ckan_record["spatial"]:
             # CanWin Data Hub, Open Data Canada, plus a few from BC Data Catalogue
             spatial = ckan_record["spatial"]
             if isinstance(ckan_record["spatial"], str):
@@ -421,7 +469,7 @@ class CKANRepository(HarvestRepository):
             if spatial["type"] == "Polygon":
                 record["geobboxes"] = []
                 # Calculate the bounding box based on the coordinates
-                for coordinates in spatial['coordinates']:
+                for coordinates in spatial["coordinates"]:
                     for coordinate_pair in coordinates:
                         if coordinate_pair[0] not in xValues:
                             xValues.append(coordinate_pair[0])
@@ -434,9 +482,9 @@ class CKANRepository(HarvestRepository):
                              "northLat": max(yValues), "eastLon": max(xValues)})
                 if len(record["geobboxes"]) == 0:
                     record.pop("geobboxes")
-        if ("ext_spatial" in ckan_record) and ckan_record['ext_spatial']:
+        if ("ext_spatial" in ckan_record) and ckan_record["ext_spatial"]:
             # Quebec, Montreal
-            record["geoplaces"] = [{"place_name": ckan_record['ext_spatial']}]
+            record["geoplaces"] = [{"place_name": ckan_record["ext_spatial"]}]
 
         # Access Constraints, if available
         if ("private" in ckan_record):
@@ -471,18 +519,16 @@ class CKANRepository(HarvestRepository):
 
     @rate_limited(5)
     def _update_record(self, record):
-        # self.logger.debug("Updating CKAN record {}".format(record['local_identifier']) )
-
         try:
             if self.ckan_api_endpoint: # Yukon
-                r = requests.get(self.url + self.ckan_api_endpoint + "/package_show?id=" + record['local_identifier'])
+                r = requests.get(self.url + self.ckan_api_endpoint + "/package_show?id=" + record["local_identifier"])
                 try:
                     ckan_record = json.loads(r.text)["result"][0]
                 except IndexError:
                     raise ckanapi.errors.NotFound
             else:
-                ckan_record = self.ckanrepo.call_action('package_show', {'id':record['local_identifier']}, requests_kwargs={'verify': False})
-            oai_record = self.format_ckan_to_oai(ckan_record, record['local_identifier'])
+                ckan_record = self.ckanrepo.call_action("package_show", {"id":record["local_identifier"]}, requests_kwargs={"verify": False})
+            oai_record = self.format_ckan_to_oai(ckan_record, record["local_identifier"])
             if oai_record:
                 self.db.write_record(oai_record, self)
             else:
@@ -505,7 +551,7 @@ class CKANRepository(HarvestRepository):
             return True
 
         except Exception as e:
-            self.logger.error("Updating record {} failed: {} {}".format(record['local_identifier'], type(e).__name__, e))
+            self.logger.error("Updating record {} failed: {} {}".format(record["local_identifier"], type(e).__name__, e))
             if self.dump_on_failure == True:
                 try:
                     print(ckan_record)
