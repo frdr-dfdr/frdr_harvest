@@ -443,11 +443,11 @@ class CKANRepository(HarvestRepository):
             if ckan_record["private"] and not self.ckan_ignore_private:
                 record["access"] = "Limited"
             else:
-                record["access"] = "Public"
+                record["access"] = "Open"
                 if self.ckan_access_field:
                     record["access"] = ckan_record.get(self.ckan_access_field,"")
                 if record["access"].lower() in ["open", "unrestricted", "public", ""]:
-                    record["access"] = "Public"
+                    record["access"] = "Open"
 
         # Files
         if "resources" in ckan_record and isinstance(ckan_record["resources"], list):

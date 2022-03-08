@@ -96,7 +96,7 @@ class DataStreamRepository(HarvestRepository):
 
         if "isAccessibleForFree" in datastream_record:
             if datastream_record["isAccessibleForFree"]:
-                record["access"] = "Public"
+                record["access"] = "Open"
             else:
                 record["access"] = "Limited"
 

@@ -84,7 +84,7 @@ class ArcGISRepository(HarvestRepository):
         record["series"] = ""
 
         if "accessLevel" in arcgis_record and arcgis_record["accessLevel"].lower() == "public":
-            record["access"] = "Public"
+            record["access"] = "Open"
 
         if "spatial" in arcgis_record and arcgis_record["spatial"]:
             if len(arcgis_record["spatial"].split(",")) == 4:

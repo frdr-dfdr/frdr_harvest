@@ -194,7 +194,7 @@ class GeoNetworkRepository(HarvestRepository):
 
         # Rights and access
         record["rights"] = []
-        record["access"] = "Public"
+        record["access"] = "Open"
 
         access_codes = ["restricted", "otherRestrictions", "unrestricted", "private", "statutory", "confidential", "SBU", "in-confidence"]
         rights_codes = ["copyright", "patent", "patentPending", "trademark", "license", "intellectualPropertyRights", "licenseUnrestricted", "licenceEndUser", "licenceDistributor"]

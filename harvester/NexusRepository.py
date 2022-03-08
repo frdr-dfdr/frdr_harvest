@@ -139,7 +139,7 @@ class NexusRepository(HarvestRepository):
                 privacy_list = [nexus_record["privacy"].lower()]
             if "available" in privacy_list:
                 if "open" in privacy_list:
-                    record["access"] = "Public"
+                    record["access"] = "Open"
                 elif "private" in privacy_list or "registered" in privacy_list:
                     record["access"] = "Restricted"
 

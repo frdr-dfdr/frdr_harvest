@@ -123,7 +123,7 @@ class DataverseRepository(HarvestRepository):
             # Add license information to rights, if available
             record["rights"] = dataverse_record["latestVersion"]["license"]
 
-        record["access"] = "Public" # Default to public access
+        record["access"] = "Open" # Default to open access
         if dataverse_record["latestVersion"]["fileAccessRequest"]:
             # fileAccessRequest = True usually indicates at least one file is restricted
             # However, sometimes it is used in error--check to see if any files are actually restricted
