@@ -9,9 +9,9 @@ This is a repository crawler which outputs gmeta.json files for indexing by Glob
     - [OpenDataSoft](https://www.opendatasoft.com/)
     - [ArcGIS](https://www.esri.com/en-us/arcgis/products/arcgis-open-data)
     - [MarkLogic](https://www.marklogic.com/)
+    - [GeoNetwork](https://geonetwork-opensource.org/)
 - Repositories that implement either of these standards:
     - [OAI-PMH](https://www.openarchives.org/pmh/)
-    - [Catalogue Service for the Web (CSW)](https://www.ogc.org/standards/cat)
 - Repositories that register DOIs with [DataCite](https://datacite.org/).
 - Repositories with a custom REST API, sitemap, or other means of providing machine-readable metadata, on a case-by-case basis.
 
