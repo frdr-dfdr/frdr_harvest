@@ -103,3 +103,6 @@ WHERE records_x_tags_id NOT IN (
 drop index if exists records_x_tags_by_record;
 drop index if exists records_x_tags_by_tag;
 create unique index if not exists records_x_tags_by_record_tag on records_x_tags(record_uuid,tag_id);
+
+alter table creators add column orcid_id text;
+create unique index if not exists creators_by_orcid on creators(orcid_id);
