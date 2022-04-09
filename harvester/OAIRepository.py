@@ -339,7 +339,7 @@ class OAIRepository(HarvestRepository):
 
             endpoint_hostname = record.get("https://www.frdr-dfdr.ca/schema/1.0/#globusHttpsHostname", [""])[0]
             if endpoint_hostname and not endpoint_hostname.startswith("https"):
-                endpoint_hostname = "https" + endpoint_hostname
+                endpoint_hostname = "https://" + endpoint_hostname
             endpoint_path = record.get("https://www.frdr-dfdr.ca/schema/1.0/#globusEndpointPath", [""])[0]
 
             # Get all File sizes
