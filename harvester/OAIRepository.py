@@ -351,6 +351,7 @@ class OAIRepository(HarvestRepository):
                     record["files_size"] = sizes
                     record["geodisy_harvested"] = 0
                 if sizes > self.MAX_FILESIZES_TO_DOWNLOAD:
+                    self.logger.info("Files are over download limit for record: " + record["identifier"])
                     record["files_altered"] = 0
                     record["geodisy_harvested"] = 1
             except Exception as e:
