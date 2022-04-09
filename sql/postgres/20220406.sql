@@ -6,6 +6,7 @@ create unique index if not exists subjects_by_subject_language on subjects(subje
 
 delete from tags where tag is null;
 delete from tags where tag = '';
+drop index if exists tags_by_tag;
 create unique index if not exists tags_by_tag_language on tags(tag,language);
 
 delete from publishers where publisher is null;
@@ -99,3 +100,11 @@ create unique index if not exists records_x_tags_by_record_tag on records_x_tags
 
 alter table creators add column orcid_id text;
 create unique index if not exists creators_by_orcid on creators(orcid_id);
+
+DELETE FROM descriptions a USING descriptions b
+WHERE
+    a.description_id < b.description_id AND
+    a.description_hash = b.description_hash AND
+    a.record_uuid = b.record_uuid;
+drop index if exists descriptions_by_description_hash;
+create unique index if not exists descriptions_by_description_hash on descriptions(description_hash);
