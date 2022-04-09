@@ -1,13 +1,14 @@
 CREATE TABLE IF NOT EXISTS geonames (
-geonames_id INTEGER PRIMARY KEY NOT NULL,
-country text,
-province_state text,
-city text,
-northLat NUMERIC,
-southLat NUMERIC,
-eastLon NUMERIC,
-westLon NUMERIC,
-last_modified_timestamp int DEFAULT 0);
+    geonames_id INTEGER PRIMARY KEY NOT NULL,
+    country text,
+    province_state text,
+    city text,
+    northLat NUMERIC,
+    southLat NUMERIC,
+    eastLon NUMERIC,
+    westLon NUMERIC,
+    last_modified_timestamp int DEFAULT 0
+);
 
 ALTER TABLE geoplace
 ADD COLUMN record_uuid TEXT;
