@@ -120,6 +120,7 @@ class OAIRepository(HarvestRepository):
     def setRepoParams(self, repoParams):
         self.metadataprefix = "oai_dc"
         self.default_language = "en"
+        self.MAX_FILESIZES_TO_DOWNLOAD = 10000000000 # 10 GB
         super(OAIRepository, self).setRepoParams(repoParams)
         self.sickle = Sickle(self.url, iterator=FRDRItemIterator)
 
@@ -349,6 +350,9 @@ class OAIRepository(HarvestRepository):
                     record["files_altered"] = 1
                     record["files_size"] = sizes
                     record["geodisy_harvested"] = 0
+                if sizes > self.MAX_FILESIZES_TO_DOWNLOAD:
+                    record["files_altered"] = 0
+                    record["geodisy_harvested"] = 1
             except Exception as e:
                 self.logger.error(
                     "Something wrong trying to access files length from hostname: {} , path: {}".format(
