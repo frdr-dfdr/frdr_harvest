@@ -579,7 +579,7 @@ class DBInterface:
                 cur.execute(self._prep(new_record_sql), new_record_params)
 
             except self.dblayer.IntegrityError as e:
-                self.logger.error("Record insertion problem create_new_record: {} {}".format(e, ))
+                self.logger.error("Record insertion problem create_new_record: {} {}".format(e, new_record_sql))
 
         return rec[recordidcolumn]
 
