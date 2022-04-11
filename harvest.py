@@ -83,15 +83,16 @@ if __name__ == "__main__":
 
     config = get_config_ini()
     final_config = {}
+    final_config['dump_on_failure'] = False
     if arguments["--dump-on-failure"] == True:
-        final_config['dump_on_failure'] = True
-    else:
-        final_config['dump_on_failure'] = False
+        final_config['dump_on_failure'] = True        
     final_config['update_log_after_numitems'] = int(config['harvest'].get('update_log_after_numitems', 1000))
     final_config['abort_after_numerrors'] = int(config['harvest'].get('abort_after_numerrors', 5))
     final_config['record_refresh_days'] = int(config['harvest'].get('record_refresh_days', 30))
     final_config['repo_refresh_days'] = int(config['harvest'].get('repo_refresh_days', 1))
     final_config['temp_filepath'] = config['harvest'].get('temp_filepath', "temp")
+    final_config['geo_files_limit_gb'] = int(config['harvest'].get('geo_files_limit_gb', 1))
+    final_config['geo_files_limit_bytes'] = final_config['geo_files_limit_gb'] * 1000 * 1000 * 1000
     final_config['export_filepath'] = config['export'].get('export_filepath', "data")
     final_config['export_file_limit_mb'] = int(config['export'].get('export_file_limit_mb', 10))
     final_config['export_format'] = config['export'].get('export_format', "gmeta")
