@@ -422,8 +422,7 @@ class DBInterface:
                     cur.execute(self._prep(sqlstring), list(paramlist.values()))
                     related_record_id = int(cur.lastrowid)
             except self.dblayer.IntegrityError as e:
-                if not str(e).startswith("UNIQUE"): # Do not log constraint violations
-                    self.logger.error("Record insertion problem: {}".format(e))
+                self.logger.error("Record insertion problem insert_related_record: {} {}".format(e, sqlstring))
 
         return related_record_id
 
@@ -450,8 +449,7 @@ class DBInterface:
                     cur.execute(self._prep(sqlstring), list(paramlist.values()))
                     cross_table_id = int(cur.lastrowid)
             except self.dblayer.IntegrityError as e:
-                if not str(e).startswith("UNIQUE"): # Do not log constraint violations
-                    self.logger.error("Record insertion problem: {}".format(e))
+                self.logger.error("Record insertion problem insert_cross_record: {} {}".format(e,sqlstring))
 
         return cross_table_id
 
@@ -564,6 +562,7 @@ class DBInterface:
 
     def create_new_record(self, rec, source_url, repo_id):
         recordidcolumn = self.get_table_id_column("records")
+        new_record_sql = None
         if rec["item_url"] == "":
             rec["item_url"] = self.construct_local_url(rec)
         new_uuid = self.get_uuid(rec["item_url"])
@@ -580,8 +579,7 @@ class DBInterface:
                 cur.execute(self._prep(new_record_sql), new_record_params)
 
             except self.dblayer.IntegrityError as e:
-                if not str(e).startswith("UNIQUE"): # Do not log constraint violations
-                    self.logger.error("Record insertion problem: {}".format(e))
+                self.logger.error("Record insertion problem create_new_record: {} {}".format(e, ))
 
         return rec[recordidcolumn]
 
@@ -727,14 +725,14 @@ class DBInterface:
                         if val_fieldname != "geopoints": # Remove conditional when Geodisy starts processing points
                             modified_upstream = True
                     if val_rec_id is not None:
-                        new_val_recs_ids.append(val_rec_id)
                         if crosstable:
-                            if val_rec_id not in existing_val_recs_ids:
+                            if val_rec_id not in existing_val_recs_ids and val_rec_id not in new_val_recs_ids:
                                 if val_fieldname in ["creator", "contributor"]:
                                     self.insert_cross_record(crosstable, val_table, val_rec_id, record[recordidcolumn], **extras)
                                 else:
                                     self.insert_cross_record(crosstable, val_table, val_rec_id, record[recordidcolumn])
                                 modified_upstream = True
+                        new_val_recs_ids.append(val_rec_id)
 
             for eid in existing_val_recs_ids: # delete value if no longer present in incoming record values
                 if eid not in new_val_recs_ids:
