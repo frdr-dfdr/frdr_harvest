@@ -104,7 +104,6 @@ create unique index if not exists creators_by_orcid on creators(orcid_id);
 DELETE FROM descriptions a USING descriptions b
 WHERE
     a.description_id < b.description_id AND
-    a.description_hash = b.description_hash AND
-    a.record_uuid = b.record_uuid;
+    a.description_hash = b.description_hash;
 drop index if exists descriptions_by_description_hash;
 create unique index if not exists descriptions_by_description_hash on descriptions(description_hash);
