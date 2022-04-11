@@ -112,7 +112,7 @@ DELETE FROM descriptions
 WHERE description_id NOT IN (
     SELECT MAX(description_id) AS MaxID
     FROM descriptions
-    GROUP BY record_uuid,description_hash
+    GROUP BY description_hash
 );
 drop index if exists descriptions_by_description_hash;
 create unique index if not exists descriptions_by_description_hash on descriptions(description_hash);
