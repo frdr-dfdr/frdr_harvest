@@ -24,7 +24,7 @@ class ExporterDataverse(Exporter.Exporter):
         with records_con:
             records_cursor = records_con.cursor()
         records_sql = """SELECT recs.""" + recordidcolumn + """, recs.item_url, recs.pub_date, recs.title, recs.title_fr, recs.item_url, recs.series, 
-            recs.repository_id, recs.files_altered, reps.repository_url, reps.repository_name, reps.repository_type
+            recs.repository_id, recs.files_altered, reps.repository_url, reps.repository_name, reps.repository_name_fr, reps.repository_type
             FROM records recs
             JOIN repositories reps on reps.repository_id = recs.repository_id
             WHERE recs.geodisy_harvested = 0 AND recs.deleted = 0 AND (recs.title <>''OR recs.title_fr <> '') LIMIT ?"""
@@ -33,7 +33,7 @@ class ExporterDataverse(Exporter.Exporter):
         records = []
         for row in records_cursor:
             record = (dict(zip([recordidcolumn,'item_url','pub_date','title', 'title_fr','item_url','series','repository_id', 'files_altered', 
-                'repository_url', 'repository_name','repository_type'], row)))
+                'repository_url', 'repository_name', 'repository_name_fr', 'repository_type'], row)))
             records.append(record)
         cur = self.db.getLambdaCursor()
         records_sql = """SELECT count(*)
@@ -93,13 +93,18 @@ class ExporterDataverse(Exporter.Exporter):
             return {}
         recordidcolumn = self.db.get_table_id_column("records")
 
+        # Check for bilingual domain names
+        repo_name = record["repository_name"]
+        if (record["repository_name_fr"] != "" and record["repository_name_fr"] != record["repository_name"]):
+            repo_name = record["repository_name"] + " / " + record["repository_name_fr"]
+                
         record_dv_data = {
             "id": record[recordidcolumn],
             "persistentUrl": record["item_url"],
             "publicationDate": record["pub_date"],
             "license": self.get_license(record),
             "repo_base_url": record["repository_url"],
-            "publisher": record["repository_name"],
+            "publisher": repo_name,
             "files_altered": record["files_altered"]
         }
         geo = self.get_geospatial_metadata(record)
