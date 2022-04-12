@@ -19,6 +19,7 @@ class DataverseRepository(HarvestRepository):
             "repo_url": self.url,
             "repo_set": self.set,
             "repo_name": self.name,
+            "repo_name_fr": self.name_fr,
             "repo_type": "dataverse",
             "enabled": self.enabled,
             "repo_thumbnail": self.thumbnail,

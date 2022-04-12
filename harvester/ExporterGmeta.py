@@ -28,7 +28,7 @@ class ExporterGmeta(Exporter.Exporter):
 
         records_sql = """SELECT recs.""" + recordidcolumn + """, recs.title, recs.title_fr, recs.pub_date, recs.series, recs.source_url,
             recs.deleted, recs.local_identifier, recs.item_url, recs.modified_timestamp,
-            repos.repository_url, repos.repository_name, repos.repository_thumbnail, repos.item_url_pattern, repos.last_crawl_timestamp
+            repos.repository_url, repos.repository_name, repos.repository_name_fr, repos.repository_thumbnail, repos.item_url_pattern, repos.last_crawl_timestamp
             FROM records recs, repositories repos WHERE recs.repository_id = repos.repository_id"""
         records_args = ()
 
@@ -58,7 +58,7 @@ class ExporterGmeta(Exporter.Exporter):
             record = (dict(zip(
                 [recordidcolumn, 'title', 'title_fr', 'pub_date', 'series', 'source_url', 'deleted', 'local_identifier',
                  'item_url', 'modified_timestamp',
-                 'repository_url', 'repository_name', 'repository_thumbnail', 'item_url_pattern',
+                 'repository_url', 'repository_name', 'repository_name_fr','repository_thumbnail', 'item_url_pattern',
                  'last_crawl_timestamp'], row)))
             record["deleted"] = int(record["deleted"])
 
@@ -213,12 +213,17 @@ class ExporterGmeta(Exporter.Exporter):
                             record[custom_label] = [record[custom_label]]
                         record[custom_label].append(field_value)
 
+            # Check for bilingual domain names
+            repo_name = record["repository_name"]
+            if (record["repository_name_fr"] != "" and record["repository_name_fr"] != record["repository_name"]):
+                repo_name = record["repository_name"] + " / " + record["repository_name_fr"]
+
             # Convert friendly column names into dc element names
             record["dc_title_en"] = record["title"]
             record["dc_title_fr"] = record["title_fr"]
             record["dc_date"] = record["pub_date"]
             record["frdr_series"] = record["series"]
-            record["frdr_origin_id"] = record["repository_name"]
+            record["frdr_origin_id"] = repo_name
             record["frdr_origin_icon"] = record["repository_thumbnail"]
             gmeta_subject = record[recordidcolumn]
 
@@ -245,6 +250,7 @@ class ExporterGmeta(Exporter.Exporter):
             record.pop("pub_date", None)
             record.pop(recordidcolumn, None)
             record.pop("repository_name", None)
+            record.pop("repository_name_fr", None)
             record.pop("repository_thumbnail", None)
             record.pop("repository_url", None)
             record.pop("series", None)
