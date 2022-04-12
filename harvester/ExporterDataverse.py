@@ -95,7 +95,7 @@ class ExporterDataverse(Exporter.Exporter):
 
         # Check for bilingual domain names
         repo_name = record["repository_name"]
-        if (record["repository_name_fr"] != "" and record["repository_name_fr"] != record["repository_name"]):
+        if (record["repository_name_fr"] is not None and record["repository_name_fr"] != record["repository_name"]):
             repo_name = record["repository_name"] + " / " + record["repository_name_fr"]
                 
         record_dv_data = {
