@@ -422,7 +422,7 @@ class DBInterface:
                     cur.execute(self._prep(sqlstring), list(paramlist.values()))
                     related_record_id = int(cur.lastrowid)
             except self.dblayer.IntegrityError as e:
-                self.logger.error("Record insertion problem: {}".format(e))
+                self.logger.error("Record insertion problem insert_related_record: {} {}".format(e, sqlstring))
 
         return related_record_id
 
@@ -449,7 +449,7 @@ class DBInterface:
                     cur.execute(self._prep(sqlstring), list(paramlist.values()))
                     cross_table_id = int(cur.lastrowid)
             except self.dblayer.IntegrityError as e:
-                self.logger.error("Record insertion problem: {}".format(e))
+                self.logger.error("Record insertion problem insert_cross_record: {} {}".format(e,sqlstring))
 
         return cross_table_id
 
@@ -562,6 +562,7 @@ class DBInterface:
 
     def create_new_record(self, rec, source_url, repo_id):
         recordidcolumn = self.get_table_id_column("records")
+        new_record_sql = None
         if rec["item_url"] == "":
             rec["item_url"] = self.construct_local_url(rec)
         new_uuid = self.get_uuid(rec["item_url"])
@@ -578,7 +579,7 @@ class DBInterface:
                 cur.execute(self._prep(new_record_sql), new_record_params)
 
             except self.dblayer.IntegrityError as e:
-                self.logger.error("Record insertion problem: {}".format(e))
+                self.logger.error("Record insertion problem create_new_record: {} {}".format(e, new_record_sql))
 
         return rec[recordidcolumn]
 
@@ -586,6 +587,7 @@ class DBInterface:
         if extras is None:
             extras = {}
         extrawhere = ""
+        basetable_extras = {}
         modified_upstream = False
         val_idcol = self.get_table_id_column(val_table)
         crosstable = self.get_table_crosstable(val_table)
@@ -689,16 +691,33 @@ class DBInterface:
                         val_rec_id = self.get_single_record_id(val_table, value, extrawhere)
                     elif val_fieldname in ["geoplaces", "geopoints", "geobboxes", "geofiles"]:
                         val_rec_id = self.get_single_record_id(val_table, record[recordidcolumn], **extras)
-                    else: # ["creator", "contributor", "publisher", "rights"]
+                    elif val_fieldname in ["creator"]:
+                        creator_name = value
+                        if isinstance(value, dict):
+                            creator_name = value["name"]
+                            creator_orcid = value["orcid"]
+                            if creator_orcid and not creator_orcid.startswith("http"):
+                                creator_orcid = "https://orcid.org/" + value["orcid"]
+                            if creator_orcid:
+                                creator_orcid = creator_orcid.replace("http:","https:")
+                            basetable_extras = {"orcid_id": creator_orcid}
+                        else:
+                            basetable_extras = {}
+                        val_rec_id = self.get_single_record_id(val_table, creator_name, **basetable_extras)
+                    else: # ["contributor", "publisher", "rights"]
                         val_rec_id = self.get_single_record_id(val_table, value)
 
                     # write val_table record and crosstable records if needed
                     if val_rec_id is None:
                         if val_fieldname in ["description", "description_fr"]:
                             extras["description"] = original_value
-
-                        if val_fieldname in ["creator", "contributor", "publisher"]:
+                        if val_fieldname in ["contributor", "publisher"]:
                             val_rec_id = self.insert_related_record(val_table, value)
+                        elif val_fieldname in ["creator"]:
+                            if isinstance(value, dict):
+                                val_rec_id = self.insert_related_record(val_table, value["name"], **basetable_extras)
+                            else:
+                                val_rec_id = self.insert_related_record(val_table, value)
                         elif val_fieldname in ["geoplaces", "geopoints", "geobboxes", "geofiles"]:
                             val_rec_id = self.insert_related_record(val_table, record[recordidcolumn], **extras)
                         else: # ["affiliation", "rights", "tags", "tags_fr", "subject", "subject_fr", "description", "description_fr"]:
@@ -706,14 +725,15 @@ class DBInterface:
                         if val_fieldname != "geopoints": # Remove conditional when Geodisy starts processing points
                             modified_upstream = True
                     if val_rec_id is not None:
-                        new_val_recs_ids.append(val_rec_id)
                         if crosstable:
-                            if val_rec_id not in existing_val_recs_ids:
+                            if val_rec_id not in existing_val_recs_ids and val_rec_id not in new_val_recs_ids:
                                 if val_fieldname in ["creator", "contributor"]:
                                     self.insert_cross_record(crosstable, val_table, val_rec_id, record[recordidcolumn], **extras)
                                 else:
                                     self.insert_cross_record(crosstable, val_table, val_rec_id, record[recordidcolumn])
                                 modified_upstream = True
+                        new_val_recs_ids.append(val_rec_id)
+
             for eid in existing_val_recs_ids: # delete value if no longer present in incoming record values
                 if eid not in new_val_recs_ids:
                     modified_upstream = True
@@ -723,6 +743,7 @@ class DBInterface:
                         self.delete_rows(crosstable, recordidcolumn, str(record[recordidcolumn]), deletewhere )
                     else:
                         self.delete_rows(val_table, val_idcol, eid)
+
         elif existing_val_recs: # delete metadata if the field is no longer present at all in incoming record
             modified_upstream = True
             if crosstable:
@@ -754,6 +775,7 @@ class DBInterface:
                 source_url = record["dc:source"][0]
             else:
                 source_url = record["dc:source"]
+
         if record[recordidcolumn] is None:
             modified_upstream = True # New record has new metadata
             record[recordidcolumn] = self.create_new_record(record, source_url, repo_id)

@@ -141,8 +141,25 @@ class DataverseRepository(HarvestRepository):
                 record["title"] = citation_field["value"]
             elif citation_field["typeName"] == "author":
                 record["creator"] = []
-                for creator in citation_field["value"]:
-                    record["creator"].append(creator["authorName"]["value"])
+                record["affiliation"] = []
+                for author in citation_field["value"]:
+                    creator_name = author["authorName"]["value"]
+                    creator_id = None
+                    creator_id_scheme = None
+                    if "authorIdentifier" in author:
+                        creator_id = author["authorIdentifier"]["value"]
+                        creator_id_scheme = author["authorIdentifierScheme"]["value"]
+                    if creator_name is not None and creator_id is not None and creator_id_scheme=="ORCID":
+                        record["creator"].append({"name":creator_name, "orcid":creator_id})
+                    elif creator_name is not None:
+                        record["creator"].append(creator_name)
+                    if "authorAffiliation" in author and author["authorAffiliation"]["value"] is not None:
+                        # This is currently per-record affiliation, not per-author
+                        affiliation_list = author["authorAffiliation"]["value"]
+                        if affiliation_list is not None:
+                            for aff in affiliation_list.split(","):
+                                if aff not in record["affiliation"]:
+                                    record["affiliation"].append(aff)
             elif citation_field["typeName"] == "dsDescription":
                 for description in citation_field["value"]:
                     record["description"].append(description["dsDescriptionValue"]["value"])
