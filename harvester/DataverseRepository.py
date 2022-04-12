@@ -146,9 +146,10 @@ class DataverseRepository(HarvestRepository):
                 for author in citation_field["value"]:
                     creator_name = author["authorName"]["value"]
                     creator_id = None
-                    creator_id_scheme = None
+                    creator_id_scheme = "ORCID" # Assume ORCID unless otherwise specified
                     if "authorIdentifier" in author:
                         creator_id = author["authorIdentifier"]["value"]
+                    if "authorIdentifierScheme" in author:
                         creator_id_scheme = author["authorIdentifierScheme"]["value"]
                     if creator_name is not None and creator_id is not None and creator_id_scheme=="ORCID":
                         record["creator"].append({"name":creator_name, "orcid":creator_id})
@@ -274,19 +275,25 @@ class DataverseRepository(HarvestRepository):
         try:
             identifier_split = record['local_identifier'].split("_")
             item_identifier = identifier_split[0]
+            dataverse_record = None
+            oai_record = None
             record_url = self.url.replace("dataverses/%id%/contents", "datasets/") + item_identifier
             #self.logger.info("Record URL: {}".format(record_url))
             try:
-                item_response = requests.get(record_url)
-                dataverse_record = item_response.json()["data"]
-                dataverse_record["combined_identifier"] = record['local_identifier']
+                item_response = requests.get(record_url).json()
+                if "status" in item_response and item_response["status"].lower() == "error":
+                    self.db.delete_record(record)
+                if "data" in item_response:
+                    dataverse_record = item_response["data"]
+                    dataverse_record["combined_identifier"] = record['local_identifier']
             except Exception as e:
                 # Exception means this URL was not found
                 self.logger.error("Fetching record {} failed: {} {}".format(record_url, type(e).__name__, e))
                 # Don't touch the record in this case  - touching updates timestamp and prevents updates for 30 days
                 # self.db.touch_record(record)
                 return True
-            oai_record = self.format_dataverse_to_oai(dataverse_record)
+            if dataverse_record:
+                oai_record = self.format_dataverse_to_oai(dataverse_record)
             if oai_record:
                 self.db.write_record(oai_record, self)
                 if "deleted" in oai_record:
