@@ -18,6 +18,7 @@ class HarvestRepository(object):
             'url': None,
             'type': None,
             'name': None,
+            'name_fr': None,
             'set': '',
             'thumbnail': None,
             'abort_after_numerrors': 5,
