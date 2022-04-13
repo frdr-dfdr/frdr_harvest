@@ -91,7 +91,7 @@ class CKANRepository(HarvestRepository):
 
         if ("type" in ckan_record) and ckan_record["type"]:
             # Exclude showcases and other non-dataset records (publications from Alberta, info from Open Data Canada)
-            if ckan_record["type"] in ["showcase", "publications", "info", "harvest"]:
+            if ckan_record["type"] in ["showcase", "publications", "info", "harvest", "url"]:
                 return False
 
         if ("portal_type" in ckan_record) and ckan_record["portal_type"]:
@@ -199,12 +199,22 @@ class CKANRepository(HarvestRepository):
             # Toronto
             record["publisher"] = ckan_record["owner_division"]
 
+        # Look for a DOI
+        doi_field = self.ckan_doi_field
+        if not doi_field:
+            doi_field = "project_doi"
+        doi = ckan_record.get(doi_field)
+        if doi:
+            doi = doi.strip()
+        if doi and not doi.startswith("http"):
+            doi = "https://doi.org/" + doi
+
+        # We use the reserved key of identifier; if the repo has data here it should be captured above this line
         record["identifier"] = local_identifier
 
-        # If a CanWin Data Hub record has a doi it is preferred over the local identifier
-        doi = ckan_record.get("project_doi")
-        if self.name == 'CanWin Data Hub' and doi and doi.strip():
-            record["item_url"] = "https://doi.org/" + ckan_record["project_doi"]
+        # If DOI is preferred over the local identifier
+        if self.ckan_use_doi_for_item_url and doi:
+            record["item_url"] = doi
         elif self.item_url_pattern and not self.ckan_strip_from_identifier:
             record["item_url"] = self.item_url_pattern.replace("%id%", ckan_record["id"])
         else:
@@ -329,6 +339,8 @@ class CKANRepository(HarvestRepository):
         if not record["pub_date"] and ("date_published" in ckan_record and ckan_record["date_published"]):
             # Another possible field name for publication date
             record["pub_date"] = ckan_record["date_published"]
+        if not record["pub_date"] and ("publication_year" in ckan_record and ckan_record["publication_year"]):
+            record["pub_date"] = ckan_record["publication_year"]
         if not record["pub_date"] and ("dates" in ckan_record and isinstance(ckan_record["dates"], list)):
             # A list of date objects, look for the one marked as Created
             for date_object in ckan_record["dates"]:
