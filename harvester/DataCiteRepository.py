@@ -16,7 +16,7 @@ class DataCiteRepository(HarvestRepository):
 
     def _crawl(self):
         kwargs = {
-            "repo_id": self.repository_id, "repo_url": self.url, "repo_set": self.set, "repo_name": self.name,
+            "repo_id": self.repository_id, "repo_url": self.url, "repo_set": self.set, "repo_name": self.name, "repo_name_fr": self.name_fr,
             "repo_type": "datacite",
             "enabled": self.enabled, "repo_thumbnail": self.thumbnail, "item_url_pattern": self.item_url_pattern,
             "abort_after_numerrors": self.abort_after_numerrors,

@@ -135,14 +135,21 @@ class OAIRepository(HarvestRepository):
             self.logger.info("No items were found")
 
         kwargs = {
-            "repo_id": self.repository_id, "repo_url": self.url, "repo_set": self.set, "repo_name": self.name,
+            "repo_id": self.repository_id,
+            "repo_url": self.url,
+            "repo_set": self.set,
+            "repo_name": self.name,
+            "repo_name_fr": self.name_fr,
             "repo_type": "oai",
-            "enabled": self.enabled, "repo_thumbnail": self.thumbnail, "item_url_pattern": self.item_url_pattern,
+            "enabled": self.enabled,
+            "repo_thumbnail": self.thumbnail,
+            "item_url_pattern": self.item_url_pattern,
             "abort_after_numerrors": self.abort_after_numerrors,
             "max_records_updated_per_run": self.max_records_updated_per_run,
             "update_log_after_numitems": self.update_log_after_numitems,
             "record_refresh_days": self.record_refresh_days,
-            "repo_refresh_days": self.repo_refresh_days, "homepage_url": self.homepage_url,
+            "repo_refresh_days": self.repo_refresh_days,
+            "homepage_url": self.homepage_url,
             "repo_oai_name": self.repo_oai_name,
             "repo_registry_uri": self.repo_registry_uri
         }
@@ -162,7 +169,6 @@ class OAIRepository(HarvestRepository):
                     if not isinstance(metadata["identifier"], list):
                         metadata["identifier"] = [metadata["identifier"]]
                     for idt in metadata["identifier"]:
-                        # TODO - what about multiple identifiers? We should have some priority here, so we always pick the same one regardless of ordering
                         if idt.lower().startswith("http"):
                             metadata["dc:source"] = idt
                         if idt.lower().startswith("doi:"):
@@ -202,7 +208,6 @@ class OAIRepository(HarvestRepository):
         record["pub_date"] = record.get("date")
 
         if self.metadataprefix.lower() == "ddi":
-            # TODO: better DDI implementation that doesn't simply flatten everything, see: https://sickle.readthedocs.io/en/latest/customizing.html
             # Mapping as per http://www.ddialliance.org/resources/ddi-profiles/dc
             record["title"] = record.get("titl")
             record["creator"] = record.get("AuthEnty")
@@ -273,8 +278,14 @@ class OAIRepository(HarvestRepository):
 
             if len(frdr_xml.find("{http://datacite.org/schema/kernel-4}creators")) > 0:
                 for creator_xml in list(frdr_xml.find("{http://datacite.org/schema/kernel-4}creators")):
-                    record["creator"].append(creator_xml.find("{http://datacite.org/schema/kernel-4}creatorName").text)
+                    creator_name = creator_xml.find("{http://datacite.org/schema/kernel-4}creatorName")
+                    creator_orcid = creator_xml.find("{http://datacite.org/schema/kernel-4}nameIdentifier")
+                    if creator_name is not None and creator_orcid is not None:
+                        record["creator"].append({"name":creator_name.text, "orcid":creator_orcid.text})
+                    elif creator_name is not None:
+                        record["creator"].append(creator_name.text)
                     for affiliation_xml in creator_xml.findall("{http://datacite.org/schema/kernel-4}affiliation"):
+                        # This is currently per-record affiliation, not per-author
                         if affiliation_xml.get("affiliationIdentifier"):
                             record["affiliation"].append({"affiliation_name": affiliation_xml.text.strip(),
                                                           "affiliation_ror": affiliation_xml.get("affiliationIdentifier")})
@@ -333,7 +344,9 @@ class OAIRepository(HarvestRepository):
                 record.pop("contributor")
             #File info base
 
-            endpoint_hostname = "https://" + record.get("https://www.frdr-dfdr.ca/schema/1.0/#globusHttpsHostname", [""])[0]
+            endpoint_hostname = record.get("https://www.frdr-dfdr.ca/schema/1.0/#globusHttpsHostname", [""])[0]
+            if endpoint_hostname and not endpoint_hostname.startswith("https"):
+                endpoint_hostname = "https://" + endpoint_hostname
             endpoint_path = record.get("https://www.frdr-dfdr.ca/schema/1.0/#globusEndpointPath", [""])[0]
 
             # Get all File sizes
@@ -343,6 +356,10 @@ class OAIRepository(HarvestRepository):
                     record["files_altered"] = 1
                     record["files_size"] = sizes
                     record["geodisy_harvested"] = 0
+                if sizes > self.geo_files_limit_bytes:
+                    self.logger.info("File sizes " + str(sizes) + " over download limit for record: " + record["identifier"])
+                    record["files_altered"] = 0
+                    record["geodisy_harvested"] = 1
             except Exception as e:
                 self.logger.error(
                     "Something wrong trying to access files length from hostname: {} , path: {}".format(
