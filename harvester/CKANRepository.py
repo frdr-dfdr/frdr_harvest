@@ -30,6 +30,10 @@ class CKANRepository(HarvestRepository):
             self.ckan_creator_field = ""
         if "ckan_ignore_date" not in repoParams:
             self.ckan_ignore_date = False
+        if "ckan_doi_field" not in repoParams:
+            self.ckan_doi_field = ""
+        if "ckan_use_doi_for_item_url" not in repoParams:
+            self.ckan_use_doi_for_item_url = False
 
     def _crawl(self):
         kwargs = {
