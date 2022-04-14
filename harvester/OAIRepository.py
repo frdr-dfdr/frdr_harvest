@@ -119,6 +119,7 @@ class OAIRepository(HarvestRepository):
 
     def setRepoParams(self, repoParams):
         self.metadataprefix = "oai_dc"
+        self.oai_identifier_field = "identifier"
         self.default_language = "en"
         super(OAIRepository, self).setRepoParams(repoParams)
         self.sickle = Sickle(self.url, iterator=FRDRItemIterator)
@@ -161,29 +162,38 @@ class OAIRepository(HarvestRepository):
                 record = records.next()
                 metadata = record.metadata
 
-                if "oai:https://" in record.header.identifier:
-                    record.header.identifier = record.header.identifier.replace("oai:https://", "oai:")
-
-                # Search for a hyperlink in the list of identifiers
-                if "identifier" in metadata:
-                    if not isinstance(metadata["identifier"], list):
-                        metadata["identifier"] = [metadata["identifier"]]
-                    for idt in metadata["identifier"]:
-                        if idt.lower().startswith("http"):
-                            metadata["dc:source"] = idt
-                        if idt.lower().startswith("doi:"):
-                            metadata["dc:source"] = "https://doi.org/" + idt[4:]
-                        if idt.lower().startswith("hdl:"):
-                            metadata["dc:source"] = "https://hdl.handle.net/" + idt[4:]
-
                 # EPrints workaround for using header datestamp in lieu of date
                 if "date" not in metadata and record.header.datestamp:
                     metadata["date"] = record.header.datestamp
 
                 # Use the header id for the database key (needed later for OAI GetRecord calls)
-                metadata["identifier"] = record.header.identifier
+                metadata["local_identifier"] = record.header.identifier
+                if "oai:https://" in metadata["local_identifier"]:
+                    metadata["local_identifier"] = metadata["local_identifier"].replace("oai:https://", "oai:")
+
+                # Search for a hyperlink in the list of identifiers; use the first hyperlink but prefer DOIs
+                metadata["item_url"] = None
+                if self.item_url_pattern is not None:
+                        metadata["item_url_pattern"] = self.item_url_pattern
+                        metadata["item_url"] = self.db.construct_local_url(metadata)
+                elif self.oai_identifier_field in metadata:
+                    searchlist = metadata[self.oai_identifier_field]
+                    if not isinstance(searchlist, list):
+                        searchlist = [searchlist]
+                    for idt in searchlist:
+                        if metadata["item_url"] is None or "doi" in idt:
+                            if idt.lower().startswith("http"):
+                                metadata["item_url"] = idt
+                            if idt.lower().startswith("doi:"):
+                                metadata["item_url"] = "https://doi.org/" + idt[4:]
+                            if idt.lower().startswith("hdl:"):
+                                metadata["item_url"] = "https://hdl.handle.net/" + idt[4:]
+
+                metadata["identifier"] = metadata["local_identifier"]
+
                 oai_record = self.unpack_oai_metadata(metadata, record.xml)
                 self.domain_metadata = self.find_domain_metadata(metadata)
+                print("Writing local_id=" + metadata["local_identifier"] + " id=" + metadata["identifier"] + " url=" + metadata["item_url"])
                 self.db.write_record(oai_record, self)
                 item_count = item_count + 1
                 if (item_count % self.update_log_after_numitems == 0):
@@ -193,7 +203,6 @@ class OAIRepository(HarvestRepository):
                                                                            (item_count / tdelta)))
 
             except AttributeError:
-                # FIXME - cIRcle throws this error for 2 records on fresh harvest (2021-09-27)
                 self.logger.debug("AttributeError while working on item {}".format(item_count))
 
             except StopIteration:
@@ -233,7 +242,7 @@ class OAIRepository(HarvestRepository):
             # Put these dates in preferred order
             record["pub_date"] = [record.get("pubdate"), record.get("begdate"), record.get("enddate")]
             record["type"] = record.get("geoform")
-            record["dc:source"] = record.get("onlink")
+            record["item_url"] = record.get("onlink")
             record["rights"] = record.get("distliab")
             record["access"] = record.get("accconst")
 
@@ -312,7 +321,6 @@ class OAIRepository(HarvestRepository):
                         record["geoplaces"].append(place)
 
             if "http://datacite.org/schema/kernel-4#geolocationPoint" in record:
-                # FIXME look into why OAI is returning duplicate points
                 record["geopoints"] = []
                 for geopoint in record["http://datacite.org/schema/kernel-4#geolocationPoint"]:
                     point_split = geopoint.split()
@@ -357,7 +365,7 @@ class OAIRepository(HarvestRepository):
                     record["files_size"] = sizes
                     record["geodisy_harvested"] = 0
                 if sizes > self.geo_files_limit_bytes:
-                    self.logger.info("File sizes " + str(sizes) + " over download limit for record: " + record["identifier"])
+                    self.logger.info("File sizes " + str(sizes) + " over download limit for record: " + record["local_identifier"])
                     record["files_altered"] = 0
                     record["geodisy_harvested"] = 1
             except Exception as e:
@@ -382,19 +390,11 @@ class OAIRepository(HarvestRepository):
                 except Exception as e:
                     self.logger.error("Something wrong trying to access files from hostname: {} , path: {}".format(endpoint_hostname, endpoint_path))
 
-        if "identifier" not in record:
-            return None
         if record["pub_date"] is None:
             return None
 
-        # If there are multiple identifiers, and one of them contains a link, then prefer it
-        # Otherwise just take the first one
-        if isinstance(record["identifier"], list):
-            valid_id = record["identifier"][0]
-            for idstring in record["identifier"]:
-                if "http" in idstring.lower():
-                    valid_id = idstring
-            record["identifier"] = valid_id
+        if self.oai_identifier_field not in record:
+            return None
 
         if "creator" in record and record["creator"]:
             if isinstance(record["creator"], list):
@@ -418,7 +418,7 @@ class OAIRepository(HarvestRepository):
                     record["creator"].append(record["publisher"])
 
         if "creator" in record and isinstance(record["creator"], list) and len(record["creator"]) == 0:
-            self.logger.debug("Item {} is missing creator - will not be added".format(record["identifier"]))
+            self.logger.debug("Item {} is missing creator - will not be added".format(record["local_identifier"]))
             return None
 
         if "contributor" in record and record["contributor"]:
@@ -427,7 +427,6 @@ class OAIRepository(HarvestRepository):
                 record["contributor"] = [x for x in record["contributor"] if x != None]
                 if len(record["contributor"]) == 0:
                     record.pop("contributor")
-
 
         # If date is undefined add an empty key
         if "pub_date" not in record:
@@ -457,8 +456,7 @@ class OAIRepository(HarvestRepository):
                 date_object = dateparser.parse(record["pub_date"], date_formats=["%Y%m%d"])
             record["pub_date"] = date_object.strftime("%Y-%m-%d")
         except Exception as e:
-            self.logger.error("Something went wrong parsing the date, {} from {}".format(record["pub_date"]
-                              , (record["dc:source"] if record["identifier"] is None else record["identifier"])))
+            self.logger.error("Something went wrong parsing the date, {} from {}".format(record["pub_date"], record["local_identifier"]))
             return None
 
         if "title" not in record:
@@ -566,20 +564,13 @@ class OAIRepository(HarvestRepository):
 
     @rate_limited(5)
     def _update_record(self, record):
-        # FIXME this function is never called for FRDR repos (collections), since repo_refresh_days = 0
-        #  but we might be relying on logic from here for FRDR repos?
-
-        #self.logger.debug("Updating OAI record {}".format(record["local_identifier"]))
+        #self.logger.debug("Updating OAI record {} {}".format(record["local_identifier"], record["item_url"]))
 
         try:
-            single_record = self.sickle.GetRecord(identifier=record["local_identifier"],
-                                                  metadataPrefix=self.metadataprefix)
+            single_record = self.sickle.GetRecord(identifier=record["local_identifier"], metadataPrefix=self.metadataprefix)
 
             try:
                 metadata = single_record.metadata
-                if "identifier" in metadata and isinstance(metadata["identifier"], list):
-                    if "http" in metadata["identifier"][0].lower():
-                        metadata["dc:source"] = metadata["identifier"][0]
             except AttributeError:
                 metadata = {}
 
@@ -587,10 +578,16 @@ class OAIRepository(HarvestRepository):
             if "date" not in metadata and single_record.header.datestamp:
                 metadata["date"] = single_record.header.datestamp
 
-            metadata["identifier"] = single_record.header.identifier
-            metadata["geodisy_harvested"] = single_record.get("geodisy_harvested", 0) # FIXME exception thrown here, FRDRRecord does not have "get"
-            metadata["fizes_size"] = single_record.get("files_size", 0) # FIXME this would also thrown an exception if it were reachable
-            oai_record = self.unpack_oai_metadata(metadata, record.xml)
+            metadata["local_identifier"] = record["local_identifier"] # OAI identifier format "oai:repo:record"
+            metadata["identifier"] = record["local_identifier"]
+            metadata["item_url"] = record["item_url"]
+            metadata["geodisy_harvested"] = 0
+            if "geodisy_harvested" in record:
+                metadata["geodisy_harvested"] = record["geodisy_harvested"]
+            metadata["geodisy_harvested"] = 0
+            if "fizes_size" in record:
+                metadata["fizes_size"] = record["fizes_size"]
+            oai_record = self.unpack_oai_metadata(metadata, single_record.xml)
             self.domain_metadata = self.find_domain_metadata(metadata)
             if oai_record is None:
                 self.db.delete_record(record)
@@ -604,8 +601,8 @@ class OAIRepository(HarvestRepository):
             return True
 
         except Exception as e:
-            self.logger.error("Updating item failed (repo_id:{}, oai_id:{}): {} {}".format(self.repository_id,
-                                                                                        record["local_identifier"], type(e).__name__, e))
+            self.logger.error("Updating item failed (repo_id:{}, oai_id:{}): {} {}".format(
+                self.repository_id, record["local_identifier"], type(e).__name__, e))
             if self.dump_on_failure == True:
                 try:
                     print(single_record.metadata)

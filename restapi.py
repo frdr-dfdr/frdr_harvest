@@ -133,7 +133,6 @@ class Record(Resource):
                     "title_fr": record["title_fr"],
                     "pub_date": record["pub_date"],
                     "modified_timestamp": int(record["modified_timestamp"]),
-                    "source_url": record["source_url"],
                     "deleted": int(record["deleted"]),
                     "local_identifier": record["local_identifier"],
                     "series": record["series"],

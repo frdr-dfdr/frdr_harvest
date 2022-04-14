@@ -192,12 +192,12 @@ class DBInterface:
                     self.logger.debug("This repo does not exist in the database; adding")
                     if self.dbtype == "postgres":
                         insert_sql = """INSERT INTO repositories
-                            (repository_url, repository_set, repository_name, repository_type, repository_thumbnail,
-                            last_crawl_timestamp, item_url_pattern, enabled,
-                            abort_after_numerrors,max_records_updated_per_run,update_log_after_numitems,
-                            record_refresh_days,repo_refresh_days,homepage_url,repo_oai_name, repo_registry_uri)
-                            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING repository_id"""
-                        insert_params = (self.repo_url, self.repo_set, self.repo_name, self.repo_type, self.repo_thumbnail,
+                            (repository_url, repository_set, repository_name, repository_name_fr, repository_type, repository_thumbnail,
+                            last_crawl_timestamp, item_url_pattern, enabled, abort_after_numerrors,
+                            max_records_updated_per_run,update_log_after_numitems,record_refresh_days,repo_refresh_days,
+                            homepage_url,repo_oai_name, repo_registry_uri)
+                            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING repository_id"""
+                        insert_params = (self.repo_url, self.repo_set, self.repo_name, self.repo_name_fr, self.repo_type, self.repo_thumbnail,
                             time.time(), self.item_url_pattern, self.enabled, self.abort_after_numerrors,
                             self.max_records_updated_per_run, self.update_log_after_numitems, self.record_refresh_days,
                             self.repo_refresh_days, self.homepage_url, self.repo_oai_name, self.repo_registry_uri)
@@ -206,12 +206,12 @@ class DBInterface:
 
                     if self.dbtype == "sqlite":
                         insert_sql = """INSERT INTO repositories
-                            (repository_url, repository_set, repository_name, repository_type, repository_thumbnail,
+                            (repository_url, repository_set, repository_name, repository_name_fr, repository_type, repository_thumbnail,
                             last_crawl_timestamp, item_url_pattern, enabled, abort_after_numerrors,
                             max_records_updated_per_run,update_log_after_numitems,record_refresh_days,repo_refresh_days,
                             homepage_url,repo_oai_name,repo_registry_uri)
-                            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"""
-                        insert_params = (self.repo_url, self.repo_set, self.repo_name, self.repo_type, self.repo_thumbnail,
+                            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"""
+                        insert_params = (self.repo_url, self.repo_set, self.repo_name, self.repo_name_fr, self.repo_type, self.repo_thumbnail,
                             time.time(), self.item_url_pattern, self.enabled, self.abort_after_numerrors,
                             self.max_records_updated_per_run, self.update_log_after_numitems, self.record_refresh_days,
                             self.repo_refresh_days, self.homepage_url, self.repo_oai_name,self.repo_registry_uri)
@@ -401,6 +401,8 @@ class DBInterface:
         if tablename == "records":
             self.logger.error("insert_related_record() cannot be used on table: records")
             return None
+        if val is None:
+            return None
         valcolumn = self.get_table_value_column(tablename)
         idcolumn = self.get_table_id_column(tablename)
         related_record_id = None
@@ -537,18 +539,6 @@ class DBInterface:
                 local_url = re.sub("(doi|DOI):\s?", "https://doi.org/", doi)
                 return local_url
 
-        # Check if the source is already a link
-        if "source_url" in record:
-            if record["source_url"] and record["source_url"].startswith(("http","HTTP")):
-                return record["source_url"]
-        if "dc:source" in record:
-            if isinstance(record["dc:source"], list):
-                if record["dc:source"][0] and record["dc:source"][0].startswith(("http","HTTP")):
-                        return record["dc:source"][0]
-            else:
-                if record["dc:source"] and record["dc:source"].startswith(("http","HTTP")):
-                    return record["dc:source"]
-
         # URL is in the identifier
         if "local_identifier" in record:
             local_url = re.search("(http|ftp|https)://([\w_-]+(?:(?:\.[\w_-]+)+))([\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-])?",
@@ -560,7 +550,7 @@ class DBInterface:
             self.logger.error("construct_local_url() failed for item: {}".format(json.dumps(record)) )
         return None
 
-    def create_new_record(self, rec, source_url, repo_id):
+    def create_new_record(self, rec, repo_id):
         recordidcolumn = self.get_table_id_column("records")
         new_record_sql = None
         if rec["item_url"] == "":
@@ -571,10 +561,10 @@ class DBInterface:
         with con:
             cur = self.getDictCursor()
             try:
-                new_record_sql = """INSERT INTO records (""" + recordidcolumn + """,title, title_fr, pub_date, series, modified_timestamp, source_url,
+                new_record_sql = """INSERT INTO records (""" + recordidcolumn + """,title, title_fr, pub_date, series, modified_timestamp,
                     deleted, local_identifier, item_url, repository_id, upstream_modified_timestamp, files_size, files_altered)
-                    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)"""
-                new_record_params = (rec[recordidcolumn], rec["title"], rec["title_fr"], rec["pub_date"], rec["series"], time.time(), source_url, 
+                    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)"""
+                new_record_params = (rec[recordidcolumn], rec["title"], rec["title_fr"], rec["pub_date"], rec["series"], time.time(), 
                     0, rec["identifier"], rec["item_url"], repo_id, time.time(), rec.get("files_size", 0), rec.get("files_altered", 1))
                 cur.execute(self._prep(new_record_sql), new_record_params)
 
@@ -608,7 +598,9 @@ class DBInterface:
                 record[val_fieldname] = [record[val_fieldname]]
             new_val_recs_ids = []
             for value in record[val_fieldname]:
-                if value:
+                if value is not None:
+                    if isinstance(value, str):
+                        value = value.strip()
                     # special cases
                     if val_fieldname == "geoplaces":
                         if "country" not in value:
@@ -694,12 +686,8 @@ class DBInterface:
                     elif val_fieldname in ["creator"]:
                         creator_name = value
                         if isinstance(value, dict):
-                            creator_name = value["name"]
-                            creator_orcid = value["orcid"]
-                            if creator_orcid and not creator_orcid.startswith("http"):
-                                creator_orcid = "https://orcid.org/" + value["orcid"]
-                            if creator_orcid:
-                                creator_orcid = creator_orcid.replace("http:","https:")
+                            creator_name = value["name"].strip()
+                            creator_orcid = self.normalize_orcid(value["orcid"])
                             basetable_extras = {"orcid_id": creator_orcid}
                         else:
                             basetable_extras = {}
@@ -761,26 +749,18 @@ class DBInterface:
 
         if record is None:
             return None
-        record[recordidcolumn] = self.get_single_record_id("records", record["identifier"],
-                                                        "and repository_id=" + str(repo_id))
+        record[recordidcolumn] = self.get_single_record_id("records", record["identifier"], "and repository_id=" + str(repo_id))
         record["item_url_pattern"] = repo.item_url_pattern
         if record.get("item_url", None) is None:
             record["item_url"] = self.construct_local_url(record)
 
         con = self.getConnection()
 
-        source_url = ""
-        if 'dc:source' in record:
-            if isinstance(record["dc:source"], list):
-                source_url = record["dc:source"][0]
-            else:
-                source_url = record["dc:source"]
-
         if record[recordidcolumn] is None:
             modified_upstream = True # New record has new metadata
-            record[recordidcolumn] = self.create_new_record(record, source_url, repo_id)
+            record[recordidcolumn] = self.create_new_record(record, repo_id)
         else:
-            # Compare title, title_fr, pub_date, series, source_url, item_url, local_identifier for changes
+            # Compare title, title_fr, pub_date, series, item_url, local_identifier for changes
             records = self.get_multiple_records("records", "*", recordidcolumn, record[recordidcolumn])
             if len(records) == 1:
                 existing_record = records[0]
@@ -792,8 +772,6 @@ class DBInterface:
                         modified_upstream = True
                     if existing_record["local_identifier"] != record["identifier"]:
                         modified_upstream = True
-                    elif existing_record["source_url"] is None and existing_record["source_url"] != source_url:
-                        modified_upstream = True
                     if existing_record["files_size"] != record.get("files_size",0):
                         record["files_altered"] = 1
                         modified_upstream = True
@@ -802,11 +780,11 @@ class DBInterface:
                     raise AssertionError
 
             with con:
-                update_sql = """UPDATE records set title=?, title_fr=?, pub_date=?, series=?, modified_timestamp=?, source_url=?,
+                update_sql = """UPDATE records set title=?, title_fr=?, pub_date=?, series=?, modified_timestamp=?,
                     deleted=?, local_identifier=?, item_url=?, files_size=?, files_altered=?
                     WHERE """ + recordidcolumn + """ = ?"""
                 update_params = (record["title"], record["title_fr"], record["pub_date"], record["series"], time.time(),
-                     source_url, 0, record["identifier"], record["item_url"], record.get("files_size", 0), record.get("files_altered",1), record[recordidcolumn])
+                     0, record["identifier"], record["item_url"], record.get("files_size", 0), record.get("files_altered",1), record[recordidcolumn])
                 cur = self.getRowCursor()
                 cur.execute(self._prep(update_sql), update_params)
 
@@ -1031,6 +1009,14 @@ class DBInterface:
                 self.logger.error("Unable to update modified_timestamp for record ? dur to error creating"
                                   " record header: ?", record[recordidcolumn], e)
         return None
+
+    def normalize_orcid(self, idstring):
+        orcid = idstring
+        if orcid is not None and not orcid.startswith("http"):
+            orcid = "https://orcid.org/" + orcid
+        if orcid is not None:
+            orcid = orcid.replace("http:","https:")
+        return orcid
 
     def check_lat(self,lat):
         if isinstance(lat, str):

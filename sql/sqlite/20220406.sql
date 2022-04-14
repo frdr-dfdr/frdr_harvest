@@ -63,7 +63,7 @@ WHERE records_x_creators_id NOT IN (
 );
 drop index if exists records_x_creators_by_creator;
 drop index if exists records_x_creators_by_record;
-create unique index if not exists records_x_creators_by_record_creator on records_x_creators(record_uuid,creator_id);
+create unique index if not exists records_x_creators_by_record_creator on records_x_creators(record_uuid,creator_id,is_contributor);
 
 DELETE FROM records_x_publishers
 WHERE records_x_publishers_id NOT IN (

@@ -26,7 +26,7 @@ class ExporterGmeta(Exporter.Exporter):
         with records_con:
             records_cursor = self.db.getRowCursor()
 
-        records_sql = """SELECT recs.""" + recordidcolumn + """, recs.title, recs.title_fr, recs.pub_date, recs.series, recs.source_url,
+        records_sql = """SELECT recs.""" + recordidcolumn + """, recs.title, recs.title_fr, recs.pub_date, recs.series,
             recs.deleted, recs.local_identifier, recs.item_url, recs.modified_timestamp,
             repos.repository_url, repos.repository_name, repos.repository_name_fr, repos.repository_thumbnail, repos.item_url_pattern, repos.last_crawl_timestamp
             FROM records recs, repositories repos WHERE recs.repository_id = repos.repository_id"""
@@ -56,7 +56,7 @@ class ExporterGmeta(Exporter.Exporter):
                 self._write_batch()
 
             record = (dict(zip(
-                [recordidcolumn, 'title', 'title_fr', 'pub_date', 'series', 'source_url', 'deleted', 'local_identifier',
+                [recordidcolumn, 'title', 'title_fr', 'pub_date', 'series', 'deleted', 'local_identifier',
                  'item_url', 'modified_timestamp',
                  'repository_url', 'repository_name', 'repository_name_fr','repository_thumbnail', 'item_url_pattern',
                  'last_crawl_timestamp'], row)))

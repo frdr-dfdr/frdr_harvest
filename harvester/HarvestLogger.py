@@ -18,7 +18,7 @@ class HarvestLogger:
         )
         logFormatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
         self.handler.setFormatter(logFormatter)
-        self.logger = logging.getLogger("Rotating Log")
+        self.logger = logging.getLogger("harvest")
         self.logger.addHandler(self.handler)
         self.logger.setLevel(logging.DEBUG)
         if 'level' in params:
