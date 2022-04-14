@@ -13,27 +13,18 @@ class CKANRepository(HarvestRepository):
     def setRepoParams(self, repoParams):
         self.metadataprefix = "ckan"
         self.default_language = "en"
+        self.ckan_access_field = ""
+        self.ckan_api_endpoint = ""
+        self.ckan_creator_field = ""
+        self.ckan_doi_field = ""
+        self.ckan_ignore_date = False
+        self.ckan_ignore_private = False
+        self.ckan_include_identifier_pattern = ""
+        self.ckan_strip_from_identifier = ""
+        self.ckan_use_doi_for_item_url = False
         super(CKANRepository, self).setRepoParams(repoParams)
         self.ckanrepo = ckanapi.RemoteCKAN(self.url)
         self.domain_metadata = []
-        if "ckan_api_endpoint" not in repoParams:
-            self.ckan_api_endpoint = ""
-        if "ckan_ignore_private" not in repoParams:
-            self.ckan_ignore_private = False
-        if "ckan_include_identifier_pattern" not in repoParams:
-            self.ckan_include_identifier_pattern = ""
-        if "ckan_strip_from_identifier" not in repoParams:
-            self.ckan_strip_from_identifier = ""
-        if "ckan_access_field" not in repoParams:
-            self.ckan_access_field = ""
-        if "ckan_creator_field" not in repoParams:
-            self.ckan_creator_field = ""
-        if "ckan_ignore_date" not in repoParams:
-            self.ckan_ignore_date = False
-        if "ckan_doi_field" not in repoParams:
-            self.ckan_doi_field = ""
-        if "ckan_use_doi_for_item_url" not in repoParams:
-            self.ckan_use_doi_for_item_url = False
 
     def _crawl(self):
         kwargs = {
@@ -94,8 +85,8 @@ class CKANRepository(HarvestRepository):
         record = {}
 
         if ("type" in ckan_record) and ckan_record["type"]:
-            # Exclude showcases and other non-dataset records (publications from Alberta, info from Open Data Canada)
-            if ckan_record["type"] in ["showcase", "publications", "info", "harvest", "url"]:
+            # Exclude known non-dataset types
+            if ckan_record["type"] in ["showcase", "publications", "info", "harvest", "url", "project", "instrument_details"]:
                 return False
 
         if ("portal_type" in ckan_record) and ckan_record["portal_type"]:
@@ -278,8 +269,10 @@ class CKANRepository(HarvestRepository):
                 record["description_fr"] = ckan_record.get("notes", "")
                 record["description"] = ""
 
-        record["description"] = ftfy.fixes.decode_escapes(record["description"]).strip()
-        record["description_fr"] = ftfy.fixes.decode_escapes(record["description_fr"]).strip()
+        if record["description"] is not None:
+            record["description"] = ftfy.fixes.decode_escapes(record["description"]).strip()
+        if record["description_fr"] is not None:
+            record["description_fr"] = ftfy.fixes.decode_escapes(record["description_fr"]).strip()
 
         if ("sector" in ckan_record):
             # BC Data Catalogue
