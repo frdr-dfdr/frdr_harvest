@@ -84,9 +84,23 @@ class CKANRepository(HarvestRepository):
     def format_ckan_to_oai(self, ckan_record, local_identifier):
         record = {}
 
+        types_to_exclude = [
+            "campaign",
+            "deployment_details"
+            "harvest", 
+            "info", 
+            "instrument_details", 
+            "platform", 
+            "project", 
+            "publication", 
+            "publications", 
+            "showcase", 
+            "url", 
+        ];
+
         if ("type" in ckan_record) and ckan_record["type"]:
             # Exclude known non-dataset types
-            if ckan_record["type"] in ["showcase", "publication", "publications", "platform", "info", "harvest", "url", "project", "instrument_details"]:
+            if ckan_record["type"] in types_to_exclude:
                 return False
 
         if ("portal_type" in ckan_record) and ckan_record["portal_type"]:
