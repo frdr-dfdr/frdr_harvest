@@ -86,7 +86,7 @@ class CKANRepository(HarvestRepository):
 
         if ("type" in ckan_record) and ckan_record["type"]:
             # Exclude known non-dataset types
-            if ckan_record["type"] in ["showcase", "publication", "publications", "info", "harvest", "url", "project", "instrument_details"]:
+            if ckan_record["type"] in ["showcase", "publication", "publications", "platform", "info", "harvest", "url", "project", "instrument_details"]:
                 return False
 
         if ("portal_type" in ckan_record) and ckan_record["portal_type"]:
