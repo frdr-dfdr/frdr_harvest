@@ -86,7 +86,7 @@ class CKANRepository(HarvestRepository):
 
         types_to_exclude = [
             "campaign",
-            "deployment_details"
+            "deployment_details",
             "harvest", 
             "info", 
             "instrument_details", 
