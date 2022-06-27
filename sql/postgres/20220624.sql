@@ -1,9 +1,9 @@
 UPDATE repositories
-SET repository_url = REPLACE(repository_url,'scholarsportal.info','borealisdata.ca')
+SET repository_url = REPLACE(repository_url,'dataverse.scholarsportal.info','borealisdata.ca')
 WHERE repository_url like '%scholarsportal.info%';
 
 UPDATE repositories
-SET homepage_url = REPLACE(homepage_url,'scholarsportal.info','borealisdata.ca')
+SET homepage_url = REPLACE(homepage_url,'dataverse.scholarsportal.info','borealisdata.ca')
 WHERE homepage_url like '%scholarsportal.info%';
 
 update records set modified_timestamp = 0 where repository_id in (
