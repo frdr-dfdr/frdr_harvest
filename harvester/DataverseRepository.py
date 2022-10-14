@@ -124,14 +124,18 @@ class DataverseRepository(HarvestRepository):
             # Add license information to rights, if available
             record["rights"] = dataverse_record["latestVersion"]["license"]
 
-        record["access"] = "Public" # Default to public access
-        if dataverse_record["latestVersion"]["fileAccessRequest"]:
-            # fileAccessRequest = True usually indicates at least one file is restricted
-            # However, sometimes it is used in error--check to see if any files are actually restricted
+        # Determine if we should show a lock icon to indicate this dataset is fully or partially restricted
+        # We search the whole dataset for any file that is flagged as restricted
+        record["access"] = "Public"
+        if "files" in dataverse_record["latestVersion"]:
             for file in dataverse_record["latestVersion"]["files"]:
-                if 'restricted' in file and file['restricted']:
+                if "restricted" in file and file["restricted"]:
                     record["access"] = "Restricted"
                     break
+        # Also mark the dataset as restricted if indicated by the top level metadata
+        if "fileAccessRequest" in dataverse_record["latestVersion"]:
+            if dataverse_record["latestVersion"]["fileAccessRequest"]:
+                record["access"] = "Restricted"
 
         # Citation block
         record["description"] = []

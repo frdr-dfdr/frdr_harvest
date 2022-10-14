@@ -1,4 +1,14 @@
 {
     "repos": [
+        {
+            "name": "Brock University Dataverse",
+            "type": "dataverse",
+            "url": "https://borealisdata.ca/api/dataverses/%id%/contents",
+            "homepage_url": "https://borealisdata.ca/dataverse/brock",
+            "thumbnail": "https://{{ web_hostname }}/discover/img/sources/brock_80x80.png",
+            "set": 41121,
+            "repo_registry_uri": "https://www.re3data.org/repository/r3d100012793",
+            "enabled": true
+        }
     ]
 }
