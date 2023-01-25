@@ -3,6 +3,7 @@ import json
 import harvester.Exporter as Exporter
 from psycopg2.extras import DictCursor
 
+import shapely.geometry
 
 class ExporterGmeta(Exporter.Exporter):
     """ Read records from the database and export to gmeta """
@@ -84,12 +85,20 @@ class ExporterGmeta(Exporter.Exporter):
                                     FROM geobbox WHERE geobbox.""" + recordidcolumn + """=?"""), (record[recordidcolumn],))
                 geobboxes = litecur.fetchall()
                 if len(geobboxes) > 0:
-                    record["datacite_geoLocationBox"] = []
+                    #record["datacite_geoLocationBox"] = []
                     for geobbox in geobboxes:
-                        record["datacite_geoLocationBox"].append({"westBoundLongitude": float(geobbox["westlon"]),
-                                                                  "eastBoundLongitude": float(geobbox["eastlon"]),
-                                                                  "northBoundLatitude": float(geobbox["northlat"]),
-                                                                  "southBoundLatitude": float(geobbox["southlat"])})
+                        #record["datacite_geoLocationBox"].append({"westBoundLongitude": float(geobbox["westlon"]),
+                        #                                          "eastBoundLongitude": float(geobbox["eastlon"]),
+                        #                                          "northBoundLatitude": float(geobbox["northlat"]),
+                        #                                          "southBoundLatitude": float(geobbox["southlat"])})
+                                                                
+                        record_bbox =  shapely.geometry.box(
+                            float(geobbox["westlon"]),
+                            float(geobbox["southlat"]),
+                            float(geobbox["eastlon"]),
+                            float(geobbox["northlat"]),
+                        )
+                        record["geoLocationPolygon"] =  shapely.geometry.mapping(record_bbox.envelope)
 
 
                 litecur.execute(self.db._prep("SELECT geopoint.lat, geopoint.lon FROM geopoint WHERE geopoint." + recordidcolumn + "=?"), (record[recordidcolumn],))
