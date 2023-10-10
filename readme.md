@@ -1,3 +1,13 @@
+********** **WARNING** **********
+
+THIS REPOSITORY IS NO LONGER MAINTAINED
+
+USE AT YOUR OWN RISK
+
+Please see: [Lunaris Harvester](https://github.com/Alliance-Lunaris/lunaris_harvester)
+
+********** **WARNING** **********
+
 # FRDR Harvester
 
 This is a repository crawler which outputs gmeta.json files for indexing by Globus. It currently supports harvesting with the following standards and APIs:
